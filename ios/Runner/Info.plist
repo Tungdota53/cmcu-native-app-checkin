@@ -1,0 +1,8 @@
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleURLName</key><string>com.example.cmccheckin</string>
+    <key>CFBundleURLSchemes</key><array><string>cmccheckin</string></array>
+  </dict>
+</array>
+<key>ITSAppUsesNonExemptEncryption</key><false/>
