@@ -35,8 +35,7 @@ workflows:
       - name: Build iOS IPA
         script: |
           # KHÔNG có --no-codesign → Codemagic sẽ dùng e-sign đã cấu hình
-          flutter build ipa --release \
-            --export-options-plist=ios/ExportOptions.plist
+          flutter build ipa --release
 
     artifacts:
       - build/ios/ipa/*.ipa
