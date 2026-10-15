@@ -1,0 +1,166 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'models.dart';
+import 'portal_crypto.dart';
+
+const String portalOrigin = 'https://iu.cmcu.edu.vn';
+
+/// Phần Config.js `Init_API()` mà app dùng: tiền tố action (trước dấu `_` đầu tiên) → base path.
+const Map<String, String> _apiBases = {
+  'SV': '/sinhvienapi/api',
+  'CC': '/chuyencanapi/api',
+};
+
+class SessionExpiredException implements Exception {
+  @override
+  String toString() => 'Session expired';
+}
+
+class PortalException implements Exception {
+  PortalException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+const String offlineMessage =
+    "Couldn't reach the portal. Check your connection and try again.";
+
+Uri apiUri(String action) {
+  final i = action.indexOf('_');
+  final prefix = i < 0 ? action : action.substring(0, i);
+  final base = _apiBases[prefix];
+  if (base == null) throw ArgumentError('No API base configured for $action');
+  return Uri.parse('$portalOrigin$base/$action');
+}
+
+class PortalResponse {
+  PortalResponse(this.data, this.message);
+  final Object? data;
+  final String? message;
+}
+
+/// `{Success, Message, Data}` — `Data` có thể là `{B: <ciphertext>}`.
+PortalResponse parseResponse(String body) {
+  final Object? root;
+  try {
+    root = jsonDecode(body);
+  } on FormatException {
+    throw PortalException('Unexpected response from the portal.');
+  }
+  if (root is! Map) throw PortalException('Unexpected response from the portal.');
+  final rawMsg = root['Message'];
+  final message = (rawMsg is String && rawMsg.trim().isNotEmpty) ? rawMsg : null;
+  if (root['Success'] != true) {
+    throw PortalException(message ?? 'The portal rejected the request.');
+  }
+  Object? data = root['Data'];
+  if (data is Map && data['B'] is String) {
+    try {
+      data = jsonDecode(PortalCrypto.decrypt(data['B'] as String, PortalCrypto.im));
+    } on FormatException {
+      throw PortalException("Couldn't read the portal's response.");
+    }
+  }
+  return PortalResponse(data, message);
+}
+
+/// Gọi portal giống `edu.system.makeRequest` (systemroot.js): form POST tới
+/// `<origin><base>/<action>` kèm JWT dạng Bearer và cookie của portal.
+class PortalApi {
+  PortalApi({
+    required this.session,
+    required this.userAgent,
+    required this.cookieHeader,
+    http.Client? client,
+  }) : _client = client ?? http.Client();
+
+  final Session session;
+  final String userAgent;
+  final Future<String?> Function(Uri url) cookieHeader;
+  final http.Client _client;
+
+  Future<List<ScheduleEntry>> weekSchedule(DateTime from, DateTime to) async {
+    const action = 'SV_ThongTin_MH/DSA4BRINKCIpAiAPKSAv';
+    // Dart Map giữ thứ tự chèn → JSON đúng thứ tự khóa như bản Kotlin.
+    final payload = jsonEncode(<String, String>{
+      'action': action,
+      'func': 'pkg_congthongtin_hssv_thongtin.LayDSLichCaNhan',
+      'iM': PortalCrypto.im,
+      'strQLSV_NguoiHoc_Id': session.userId,
+      'strNgayBatDau': _portalDate(from),
+      'strNgayKetThuc': _portalDate(to),
+      'strChucNang_Id': session.chucNangId,
+      'strNguoiThucHien_Id': session.userId,
+    });
+    final key = action.substring(action.indexOf('/') + 1);
+    final body = await _post(action, {'A': PortalCrypto.encrypt(payload, key)});
+    return parseSchedule(parseResponse(body).data);
+  }
+
+  /// Gửi từ khóa điểm danh với cùng các field, cùng thứ tự như `save_TuGhiNhan`
+  /// (lichgiang.js). Request này không có `iM` nên **không mã hóa**. Trả `Message` của portal.
+  Future<String> checkIn(ScheduleEntry entry, String keyword, String ip) async {
+    const action = 'CC_ThongTin/Them_QLSV_NguoiHoc_TuGhiNhan';
+    final body = await _post(action, checkInFields(session, entry, keyword, ip));
+    return parseResponse(body).message ?? 'Checked in.';
+  }
+
+  static Map<String, String> checkInFields(
+          Session s, ScheduleEntry e, String keyword, String ip) =>
+      <String, String>{
+        'action': 'CC_ThongTin/Them_QLSV_NguoiHoc_TuGhiNhan',
+        'type': 'POST',
+        'strChucNang_Id': s.chucNangId,
+        'strDaoTao_LopQuanLy_Id': '',
+        'strDiem_DanhSach_Id': e.classSectionId,
+        'strNgayGhiNhan': e.dateText,
+        'strGio': e.startHour,
+        'strPhut': e.startMinute,
+        'strGiay': '0',
+        'strIp': ip,
+        'strNoiDungTuGhiNhan': keyword,
+        'strNguoiThucHien_Id': s.userId,
+        'strQLSV_NguoiHoc_Id': s.userId,
+        'strDaoTao_ChuongTrinh_Id': '',
+        'strQLSV_TrangThaiNguoiHoc_Id': '',
+      };
+
+  Future<String> _post(String action, Map<String, String> fields) async {
+    final url = apiUri(action);
+    final headers = <String, String>{
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      'Accept': 'application/json, text/javascript, */*; q=0.01',
+      'Authorization': 'Bearer ${session.token}',
+      'User-Agent': userAgent,
+      'Origin': portalOrigin,
+    };
+    final cookie = await cookieHeader(url);
+    if (cookie != null && cookie.isNotEmpty) headers['Cookie'] = cookie;
+    final http.Response res;
+    try {
+      // `body: Map` → http tự mã hóa form (UTF-8, khoảng trắng → '+').
+      res = await _client
+          .post(url, headers: headers, body: fields, encoding: utf8)
+          .timeout(const Duration(seconds: 30));
+    } on SocketException {
+      throw PortalException(offlineMessage);
+    } on TimeoutException {
+      throw PortalException(offlineMessage);
+    } on http.ClientException {
+      throw PortalException(offlineMessage);
+    }
+    if (res.statusCode == 401) throw SessionExpiredException();
+    if (res.statusCode < 200 || res.statusCode > 299) {
+      throw PortalException('The portal answered HTTP ${res.statusCode}');
+    }
+    return utf8.decode(res.bodyBytes);
+  }
+
+  void close() => _client.close();
+}
+
+String _portalDate(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
