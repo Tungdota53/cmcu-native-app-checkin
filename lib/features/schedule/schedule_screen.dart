@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-
+import 'package:flutter/services.dart';
+import '../../core/app_preferences.dart';
 import '../../theme/formatters.dart';
+import '../../theme/motion.dart';
 import '../grades/grades_controller.dart';
 import '../grades/grades_screen.dart';
+import '../settings/preferences_sheet.dart';
 import 'check_in_sheet.dart';
-import 'entry_card.dart';
+import 'schedule_content.dart';
 import 'schedule_controller.dart';
-import 'week_strip.dart';
 
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({
@@ -16,24 +19,34 @@ class ScheduleScreen extends StatefulWidget {
     required this.onCheckInRequestHandled,
     required this.onSignOut,
     required this.onSessionExpired,
+    this.preferences,
   });
-
   final ScheduleController controller;
   final bool checkInRequested;
-  final VoidCallback onCheckInRequestHandled;
-  final VoidCallback onSignOut;
-  final VoidCallback onSessionExpired;
-
+  final VoidCallback onCheckInRequestHandled, onSignOut, onSessionExpired;
+  final AppPreferences? preferences;
   @override
   State<ScheduleScreen> createState() => _ScheduleScreenState();
 }
 
 class _ScheduleScreenState extends State<ScheduleScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   bool _sheetOpen = false;
   bool _expiredHandled = false;
+  bool _gradesVisited = false;
   int _tab = 0;
   late GradesController _grades;
+  late final AppPreferences _fallbackPreferences = AppPreferences();
+  AppPreferences get preferences => widget.preferences ?? _fallbackPreferences;
+  late final AnimationController _transition = AnimationController(
+    vsync: this,
+    value: 1,
+  );
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _transition,
+    curve: Curves.easeOutCubic,
+  );
+  Timer? _minuteTimer;
   ScheduleController get c => widget.controller;
 
   @override
@@ -42,20 +55,27 @@ class _ScheduleScreenState extends State<ScheduleScreen>
     WidgetsBinding.instance.addObserver(this);
     _grades = GradesController(c.api);
     c.addListener(_onChange);
+    _minuteTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted &&
+          WidgetsBinding.instance.lifecycleState != AppLifecycleState.paused)
+        c.refreshTime();
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      c.offerCurrentClass();
-      _handleRequest();
+      if (mounted) _handleRequest();
     });
   }
 
   @override
   void didUpdateWidget(covariant ScheduleScreen old) {
     super.didUpdateWidget(old);
-    if (old.controller != widget.controller) {
+    if (old.controller != c) {
       old.controller.removeListener(_onChange);
-      widget.controller.addListener(_onChange);
+      c.addListener(_onChange);
       _grades.dispose();
       _grades = GradesController(c.api);
+      _gradesVisited = false;
+      _tab = 0;
+      _expiredHandled = false;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _handleRequest();
@@ -65,31 +85,51 @@ class _ScheduleScreenState extends State<ScheduleScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _minuteTimer?.cancel();
     c.removeListener(_onChange);
     _grades.dispose();
+    _transition.dispose();
+    _fallbackPreferences.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _tab == 0) c.offerCurrentClass();
+    if (state == AppLifecycleState.resumed) c.refreshTime();
+  }
+
+  void _selectTab(int value) {
+    if (_tab == value) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    HapticFeedback.selectionClick();
+    setState(() {
+      _tab = value;
+      if (value == 1) _gradesVisited = true;
+    });
+    if (MediaQuery.disableAnimationsOf(context) || preferences.reduceMotion) {
+      _transition.value = 1;
+    } else {
+      _transition.duration = motionDuration(context);
+      _transition.forward(from: 0);
+    }
+    if (value == 0)
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncSheet());
   }
 
   void _handleRequest() {
-    if (widget.checkInRequested) {
-      if (_tab != 0) setState(() => _tab = 0);
-      c.checkInNow();
-      widget.onCheckInRequestHandled();
-    }
+    if (!widget.checkInRequested) return;
+    _selectTab(0);
+    c.checkInNow();
+    widget.onCheckInRequestHandled();
   }
 
   void _onChange() {
     if (!mounted) return;
     if (c.sessionExpired && !_expiredHandled) {
       _expiredHandled = true;
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => widget.onSessionExpired(),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onSessionExpired();
+      });
     }
     final notice = c.notice;
     if (notice != null) {
@@ -116,19 +156,28 @@ class _ScheduleScreenState extends State<ScheduleScreen>
         builder: (_) => CheckInSheet(controller: c),
       ).whenComplete(() {
         _sheetOpen = false;
-        c.dismissCheckIn();
+        if (mounted) c.dismissCheckIn();
       });
     } else if (c.checkIn == null && _sheetOpen) {
       Navigator.of(context).maybePop();
     }
   }
 
+  void _settings() => showModalBottomSheet<void>(
+    context: context,
+    useSafeArea: true,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (_) =>
+        PreferencesSheet(preferences: preferences, onSignOut: widget.onSignOut),
+  );
+
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return ListenableBuilder(
-      listenable: c,
-      builder: (context, _) => Scaffold(
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([c, preferences]),
+    builder: (context, _) {
+      final s = Theme.of(context).colorScheme;
+      return Scaffold(
         appBar: AppBar(
           toolbarHeight: 24 + MediaQuery.textScalerOf(context).scale(44),
           title: Column(
@@ -142,7 +191,7 @@ class _ScheduleScreenState extends State<ScheduleScreen>
                 _tab == 0 ? weekLabel(c.weekStart) : 'CMC STUDENT',
                 style: Theme.of(
                   context,
-                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                ).textTheme.bodySmall?.copyWith(color: s.onSurfaceVariant),
               ),
             ],
           ),
@@ -154,155 +203,76 @@ class _ScheduleScreenState extends State<ScheduleScreen>
                 icon: const Icon(Icons.today_outlined),
               ),
             IconButton(
-              onPressed: widget.onSignOut,
-              tooltip: 'Đăng xuất',
-              icon: const Icon(Icons.logout),
+              onPressed: _settings,
+              tooltip: 'Tùy chỉnh',
+              icon: const Icon(Icons.tune_rounded),
             ),
+            const SizedBox(width: 6),
           ],
         ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _tab,
-          onDestinationSelected: (value) {
-            setState(() => _tab = value);
-            if (value == 0)
-              WidgetsBinding.instance.addPostFrameCallback((_) => _syncSheet());
-          },
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.calendar_month_outlined),
-              selectedIcon: Icon(Icons.calendar_month),
-              label: 'Lịch học',
+        bottomNavigationBar: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: s.outlineVariant.withValues(alpha: .3)),
             ),
-            NavigationDestination(
-              icon: Icon(Icons.school_outlined),
-              selectedIcon: Icon(Icons.school),
-              label: 'Kết quả',
-            ),
-          ],
+          ),
+          child: NavigationBar(
+            selectedIndex: _tab,
+            onDestinationSelected: _selectTab,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.calendar_month_outlined),
+                selectedIcon: Icon(Icons.calendar_month_rounded),
+                label: 'Lịch học',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.school_outlined),
+                selectedIcon: Icon(Icons.school_rounded),
+                label: 'Kết quả',
+              ),
+            ],
+          ),
         ),
         body: SafeArea(
           top: false,
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 960),
-              child: _tab == 1
-                  ? GradesScreen(
-                      controller: _grades,
-                      onSessionExpired: widget.onSessionExpired,
-                    )
-                  : Column(
-                      children: [
-                        WeekStrip(controller: c),
-                        if (c.loading)
-                          const LinearProgressIndicator(minHeight: 3),
-                        Expanded(
-                          child: RefreshIndicator(
-                            onRefresh: c.refresh,
-                            child: _DayList(controller: c),
-                          ),
+              child: FadeTransition(
+                opacity: _fade,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, .015),
+                    end: Offset.zero,
+                  ).animate(_fade),
+                  child: IndexedStack(
+                    index: _tab,
+                    children: [
+                      TickerMode(
+                        enabled: _tab == 0,
+                        child: ScheduleContent(
+                          controller: c,
+                          compact: preferences.compactSchedule,
                         ),
-                      ],
-                    ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DayList extends StatelessWidget {
-  const _DayList({required this.controller});
-  final ScheduleController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = controller;
-    final scheme = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-    final entries = c.dayEntries;
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF172C65), Color(0xFF365BC4)],
-            ),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'SẴN SÀNG CHO BUỔI HỌC',
-                style: TextStyle(
-                  color: Color(0xFFBDDAFF),
-                  fontSize: 12,
-                  letterSpacing: 1.2,
+                      ),
+                      if (_gradesVisited)
+                        TickerMode(
+                          enabled: _tab == 1,
+                          child: GradesScreen(
+                            controller: _grades,
+                            onSessionExpired: widget.onSessionExpired,
+                          ),
+                        )
+                      else
+                        const SizedBox.shrink(),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                c.loading && entries.isEmpty
-                    ? 'Đang cập nhật lịch…'
-                    : '${entries.length} buổi học trong ngày',
-                style: text.headlineSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Xem lịch, chọn lớp và nhập từ khóa điểm danh.',
-                style: TextStyle(color: Color(0xFFE0E9FF)),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          dayTitle(c.selectedDay),
-          style: text.titleSmall?.copyWith(color: scheme.onSurfaceVariant),
-        ),
-        const SizedBox(height: 12),
-        if (c.error != null) ...[
-          Card(
-            color: scheme.errorContainer,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    c.error!,
-                    style: TextStyle(color: scheme.onErrorContainer),
-                  ),
-                  TextButton(
-                    onPressed: c.refresh,
-                    child: const Text('Thử lại'),
-                  ),
-                ],
-              ),
             ),
           ),
-          const SizedBox(height: 12),
-        ],
-        if (entries.isEmpty && !c.loading && c.error == null)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Text(
-              'Không có lịch học trong ngày này.\nKéo xuống để cập nhật lịch mới nhất.',
-              style: text.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ),
-        for (final e in entries) ...[
-          EntryCard(entry: e, onTap: () => c.openCheckIn(e)),
-          const SizedBox(height: 12),
-        ],
-      ],
-    );
-  }
+        ),
+      );
+    },
+  );
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
 import '../../theme/formatters.dart';
+import '../../theme/motion.dart';
 import 'schedule_controller.dart';
 
 class WeekStrip extends StatelessWidget {
@@ -11,7 +12,7 @@ class WeekStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = controller;
-    final today = DateTime.now();
+    final today = c.now;
     final busy = {for (final e in c.entries) dateOnly(e.date)};
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
@@ -78,40 +79,50 @@ class _DayCell extends StatelessWidget {
       label: dayTitle(day) + (busy ? ', có lịch học' : ''),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: Material(
-          color: background,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
+        child: AnimatedContainer(
+          duration: motionDuration(context, 180),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Material(
+            color: Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    shortWeekday(day),
-                    maxLines: 1,
-                    style: text.labelSmall?.copyWith(color: content),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${day.day}',
-                    style: text.titleMedium?.copyWith(
-                      color: content,
-                      fontWeight: FontWeight.w600,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                onTap();
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      shortWeekday(day),
+                      maxLines: 1,
+                      style: text.labelSmall?.copyWith(color: content),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Container(
-                    width: 5,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: busy ? content : Colors.transparent,
+                    const SizedBox(height: 2),
+                    Text(
+                      '${day.day}',
+                      style: text.titleMedium?.copyWith(
+                        color: content,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Container(
+                      width: 5,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: busy ? content : Colors.transparent,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

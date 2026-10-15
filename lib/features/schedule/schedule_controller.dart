@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 import '../../core/models.dart';
 import '../../core/portal_api.dart';
 import '../../core/public_ip.dart';
+import '../../core/display_text.dart';
+
+enum ScheduleFilter { all, classes, exams }
 
 class CheckInState {
   const CheckInState({
@@ -44,8 +47,11 @@ class ScheduleController extends ChangeNotifier {
     required this.api,
     required this.fallbackIp,
     this.onCurrentWeekLoaded,
-  }) {
-    final today = dateOnly(DateTime.now());
+    DateTime Function()? clock,
+    Future<String?> Function()? ipLookup,
+  }) : _clock = clock ?? DateTime.now,
+       _lookupIp = ipLookup ?? PublicIp.lookup {
+    final today = dateOnly(now);
     _selectedDay = today;
     _weekStart = startOfWeek(today);
     _load(force: false);
@@ -53,6 +59,14 @@ class ScheduleController extends ChangeNotifier {
 
   final PortalApi api;
   final String fallbackIp;
+  final DateTime Function() _clock;
+  final Future<String?> Function() _lookupIp;
+  DateTime get now => _clock();
+  String query = '';
+  ScheduleFilter filter = ScheduleFilter.all;
+  bool weekOverview = false;
+  final Map<DateTime, DateTime> _updatedAt = {};
+  DateTime? get updatedAt => _updatedAt[_weekStart];
   final void Function(DateTime weekStart, List<ScheduleEntry> entries)?
   onCurrentWeekLoaded;
 
@@ -68,7 +82,6 @@ class ScheduleController extends ChangeNotifier {
   int _loadToken = 0;
   Future<void>? _loadFuture;
   bool _disposed = false;
-  String? _autoOpenedId;
   bool _checkInNowPending = false;
 
   DateTime get weekStart => _weekStart;
@@ -84,6 +97,49 @@ class ScheduleController extends ChangeNotifier {
       List.generate(7, (i) => _weekStart.add(Duration(days: i)));
   List<ScheduleEntry> get dayEntries =>
       _entries.where((e) => sameDay(e.date, _selectedDay)).toList();
+  List<ScheduleEntry> get visibleEntries {
+    final search = searchKey(query);
+    return (weekOverview ? entries : dayEntries)
+        .where(
+          (entry) =>
+              (filter == ScheduleFilter.all ||
+                  (filter == ScheduleFilter.exams
+                      ? entry.isExam
+                      : !entry.isExam)) &&
+              (search.isEmpty ||
+                  searchKey(
+                    '${entry.subjectLabel} ${entry.roomLabel} ${entry.lecturerLabel} ${entry.classSectionLabel}',
+                  ).contains(search)),
+        )
+        .toList();
+  }
+
+  void search(String value) {
+    query = value;
+    _emit();
+  }
+
+  void selectFilter(ScheduleFilter value) {
+    filter = value;
+    _emit();
+  }
+
+  void showWeek(bool value) {
+    weekOverview = value;
+    _emit();
+  }
+
+  void resetFilters() {
+    query = '';
+    filter = ScheduleFilter.all;
+    _emit();
+  }
+
+  void refreshTime() => _emit();
+  void goToDate(DateTime date) {
+    weekOverview = false;
+    _moveTo(date);
+  }
 
   @override
   void dispose() {
@@ -98,8 +154,13 @@ class ScheduleController extends ChangeNotifier {
   void previousWeek() =>
       _moveTo(_selectedDay.subtract(const Duration(days: 7)));
   void nextWeek() => _moveTo(_selectedDay.add(const Duration(days: 7)));
-  void goToToday() => _moveTo(DateTime.now());
+  void goToToday() {
+    weekOverview = false;
+    _moveTo(now);
+  }
+
   void selectDay(DateTime d) {
+    weekOverview = false;
     _selectedDay = dateOnly(d);
     _emit();
   }
@@ -125,7 +186,7 @@ class ScheduleController extends ChangeNotifier {
   }
 
   void checkInNow() {
-    final now = DateTime.now();
+    final now = this.now;
     final thisWeek = startOfWeek(now);
     final weekEntries = _weeks[thisWeek];
     if (weekEntries == null) {
@@ -143,29 +204,12 @@ class ScheduleController extends ChangeNotifier {
     if (entry == null) {
       final next = nextClass(weekEntries, now);
       _notice = next != null
-          ? 'Chưa có lớp đang học. Tiếp theo: ${next.subject} lúc ${next.startTime}.'
+          ? 'Chưa có lớp đang học. Tiếp theo: ${next.subjectLabel} lúc ${next.startTime}.'
           : 'Hiện không có lớp đang học.';
       _emit();
       return;
     }
-    _autoOpenedId = entry.id;
     if (_checkIn?.entry.id != entry.id) _showCheckIn(entry, focusKeyword: true);
-  }
-
-  void offerCurrentClass() {
-    final now = DateTime.now();
-    final thisWeek = startOfWeek(now);
-    final weekEntries = _weeks[thisWeek];
-    if (weekEntries == null) {
-      if (_weekStart != thisWeek) _moveTo(now);
-      return;
-    }
-    if (_checkIn != null) return;
-    final entry = currentClass(weekEntries, now);
-    if (entry == null || entry.id == _autoOpenedId) return;
-    _autoOpenedId = entry.id;
-    _moveTo(now);
-    _showCheckIn(entry, focusKeyword: true);
   }
 
   void openCheckIn(ScheduleEntry entry) =>
@@ -180,11 +224,14 @@ class ScheduleController extends ChangeNotifier {
   void _showCheckIn(ScheduleEntry entry, {required bool focusKeyword}) {
     _checkIn = CheckInState(entry: entry, focusKeyword: focusKeyword);
     _emit();
-    if (entry.isExam) return;
+    if (entry.isExam || entry.isPresent) return;
     () async {
-      final ip = await PublicIp.lookup() ?? fallbackIp;
+      final ip = await _lookupIp() ?? fallbackIp;
       final cur = _checkIn;
-      if (cur != null && cur.entry.id == entry.id && cur.ip == null) {
+      if (!_disposed &&
+          cur != null &&
+          cur.entry.id == entry.id &&
+          cur.ip == null) {
         _checkIn = cur.copyWith(ip: ip);
         _emit();
       }
@@ -193,12 +240,19 @@ class ScheduleController extends ChangeNotifier {
 
   Future<void> submitCheckIn(String keyword) async {
     final current = _checkIn;
-    if (current == null || current.sending || current.entry.isExam) return;
+    if (_disposed ||
+        current == null ||
+        current.sending ||
+        current.succeeded ||
+        current.entry.isExam ||
+        current.entry.isPresent)
+      return;
     final trimmed = keyword.trim();
     if (trimmed.isEmpty) return;
     _checkIn = current.copyWith(sending: true, clearResult: true);
     _emit();
-    final ip = current.ip ?? await PublicIp.lookup() ?? fallbackIp;
+    final ip = current.ip ?? await _lookupIp() ?? fallbackIp;
+    if (_disposed) return;
     CheckInState? outcome;
     try {
       final message = await api.checkIn(current.entry, trimmed, ip);
@@ -225,6 +279,7 @@ class ScheduleController extends ChangeNotifier {
         succeeded: false,
       );
     }
+    if (_disposed) return;
     if (_checkIn?.entry.id == current.entry.id) _checkIn = outcome;
     _emit();
     if (outcome?.succeeded == true) _load(force: true);
@@ -257,17 +312,16 @@ class ScheduleController extends ChangeNotifier {
       );
       if (token != _loadToken || _disposed) return;
       _weeks[start] = result;
+      _updatedAt[start] = now;
       if (_weekStart == start) {
         _entries = result;
         _loading = false;
       }
       _emit();
-      if (start == startOfWeek(DateTime.now())) {
+      if (start == startOfWeek(now)) {
         onCurrentWeekLoaded?.call(start, result);
         if (_checkInNowPending) {
           checkInNow();
-        } else {
-          offerCurrentClass();
         }
       }
     } on SessionExpiredException {

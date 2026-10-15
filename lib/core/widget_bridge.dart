@@ -27,14 +27,14 @@ class WidgetBridge {
         for (final e in entries)
           {
             'id': e.id,
-            'subject': e.subject,
-            'room': e.room,
+            'subject': e.subjectLabel,
+            'room': e.room == null ? null : e.roomLabel,
             'date': iso.format(e.date),
             'start': e.startMinutes,
             'end': e.endMinutes,
             'exam': e.isExam,
             'timeRange': e.timeRange,
-          }
+          },
       ],
     };
     await HomeWidget.saveWidgetData<String>(_snapshotKey, jsonEncode(snapshot));

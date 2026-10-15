@@ -30,6 +30,27 @@ class FakeAcademicApi extends PortalApi {
 
 void main() {
   test(
+    'Sorts official scores with missing scores last and searches without accents',
+    () {
+      final api = FakeAcademicApi();
+      final c = GradesController(api);
+      addTearDown(c.dispose);
+      addTearDown(api.close);
+      c.record = AcademicRecord.parse(academicFixture());
+      c.selectSort(GradeSort.highest);
+      expect(c.visibleCourses.map((e) => e.score10), [8.5, 0, null]);
+      c.selectSort(GradeSort.lowest);
+      expect(c.visibleCourses.map((e) => e.score10), [0, 8.5, null]);
+      c.showGradedOnly(true);
+      expect(c.visibleCourses, hasLength(2));
+      c.search('lap trinh');
+      expect(c.visibleCourses, hasLength(2));
+      c.resetFilters();
+      expect(c.visibleCourses, hasLength(3));
+      expect(c.sort, GradeSort.term);
+    },
+  );
+  test(
     'Switching program ignores late responses from previous program',
     () async {
       final api = FakeAcademicApi();

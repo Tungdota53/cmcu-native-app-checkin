@@ -2,6 +2,18 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/academic_models.dart';
 import '../../core/portal_api.dart';
+import '../../core/display_text.dart';
+
+enum GradeSort { term, name, highest, lowest }
+
+extension GradeSortLabel on GradeSort {
+  String get label => switch (this) {
+    GradeSort.term => 'Học kỳ mới nhất',
+    GradeSort.name => 'Tên học phần A–Z',
+    GradeSort.highest => 'Điểm cao trước',
+    GradeSort.lowest => 'Điểm thấp trước',
+  };
+}
 
 class GradesController extends ChangeNotifier {
   GradesController(this.api);
@@ -11,6 +23,8 @@ class GradesController extends ChangeNotifier {
   AcademicRecord? record;
   AcademicTerm? term;
   String query = '';
+  GradeSort sort = GradeSort.term;
+  bool gradedOnly = false;
   String? error;
   DateTime? updatedAt;
   bool loading = false;
@@ -19,16 +33,60 @@ class GradesController extends ChangeNotifier {
   int _generation = 0;
 
   List<CourseGrade> get visibleCourses {
-    final search = query.toLowerCase().trim();
-    return record?.courses
+    final search = searchKey(query);
+    final courses =
+        record?.courses
             .where(
               (c) =>
                   (term == null || c.term.id == term!.id) &&
+                  (!gradedOnly || c.score10 != null) &&
                   (search.isEmpty ||
-                      '${c.name} ${c.code}'.toLowerCase().contains(search)),
+                      searchKey('${c.name} ${c.code}').contains(search)),
             )
             .toList() ??
         const [];
+    final sorted = List<CourseGrade>.of(courses);
+    sorted.sort((a, b) {
+      if (sort == GradeSort.name)
+        return searchKey(a.name).compareTo(searchKey(b.name));
+      if (sort == GradeSort.highest || sort == GradeSort.lowest) {
+        if (a.score10 == null && b.score10 != null) return 1;
+        if (b.score10 == null && a.score10 != null) return -1;
+        if (a.score10 != null && b.score10 != null) {
+          final score = sort == GradeSort.highest
+              ? b.score10!.compareTo(a.score10!)
+              : a.score10!.compareTo(b.score10!);
+          if (score != 0) return score;
+        }
+      }
+      final year = b.term.year.compareTo(a.term.year);
+      if (year != 0) return year;
+      final semester = (int.tryParse(b.term.semester) ?? 0).compareTo(
+        int.tryParse(a.term.semester) ?? 0,
+      );
+      return semester != 0
+          ? semester
+          : searchKey(a.name).compareTo(searchKey(b.name));
+    });
+    return sorted;
+  }
+
+  void selectSort(GradeSort value) {
+    sort = value;
+    _emit();
+  }
+
+  void showGradedOnly(bool value) {
+    gradedOnly = value;
+    _emit();
+  }
+
+  void resetFilters() {
+    term = null;
+    query = '';
+    gradedOnly = false;
+    sort = GradeSort.term;
+    _emit();
   }
 
   void selectTerm(AcademicTerm? value) {

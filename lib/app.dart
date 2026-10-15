@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/models.dart';
+import 'core/app_preferences.dart';
 import 'core/portal_api.dart';
 import 'core/session_store.dart';
 import 'core/web_session.dart';
@@ -14,29 +15,65 @@ import 'features/schedule/schedule_controller.dart';
 import 'features/schedule/schedule_screen.dart';
 import 'theme/app_theme.dart';
 
-class CmcCheckinApp extends StatelessWidget {
+class CmcCheckinApp extends StatefulWidget {
   const CmcCheckinApp({super.key, this.initialSession});
   final Session? initialSession;
 
   @override
+  State<CmcCheckinApp> createState() => _CmcCheckinAppState();
+}
+
+class _CmcCheckinAppState extends State<CmcCheckinApp> {
+  final _preferences = AppPreferences();
+  @override
+  void initState() {
+    super.initState();
+    _preferences.load();
+  }
+
+  @override
+  void dispose() {
+    _preferences.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'CMC Check-in',
-      debugShowCheckedModeBanner: false,
-      locale: const Locale('vi'),
-      supportedLocales: const [Locale('vi')],
-      localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      theme: buildTheme(Brightness.light),
-      darkTheme: buildTheme(Brightness.dark),
-      themeMode: ThemeMode.system,
-      home: AuthGate(initialSession: initialSession),
+    return ListenableBuilder(
+      listenable: _preferences,
+      builder: (context, _) => MaterialApp(
+        title: 'CMC Check-in',
+        debugShowCheckedModeBanner: false,
+        locale: const Locale('vi'),
+        supportedLocales: const [Locale('vi')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        theme: buildTheme(Brightness.light),
+        darkTheme: buildTheme(Brightness.dark),
+        themeMode: _preferences.themeMode,
+        themeAnimationDuration: _preferences.reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 240),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            disableAnimations:
+                _preferences.reduceMotion ||
+                MediaQuery.disableAnimationsOf(context),
+          ),
+          child: child!,
+        ),
+        home: AuthGate(
+          initialSession: widget.initialSession,
+          preferences: _preferences,
+        ),
+      ),
     );
   }
 }
 
 class AuthGate extends StatefulWidget {
-  const AuthGate({super.key, this.initialSession});
+  const AuthGate({super.key, this.initialSession, this.preferences});
   final Session? initialSession;
+  final AppPreferences? preferences;
 
   @override
   State<AuthGate> createState() => _AuthGateState();
@@ -148,6 +185,7 @@ class _AuthGateState extends State<AuthGate> {
     return ScheduleScreen(
       key: ValueKey(_session!.token),
       controller: controller,
+      preferences: widget.preferences,
       checkInRequested: _checkInRequested,
       onCheckInRequestHandled: () => setState(() => _checkInRequested = false),
       onSignOut: _onSignOut,

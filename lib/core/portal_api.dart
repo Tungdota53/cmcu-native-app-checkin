@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import 'models.dart';
+import 'display_text.dart';
 import 'academic_models.dart';
 import 'portal_crypto.dart';
 
@@ -56,9 +57,8 @@ PortalResponse parseResponse(String body) {
   if (root is! Map)
     throw PortalException('Phản hồi từ cổng sinh viên không hợp lệ.');
   final rawMsg = root['Message'];
-  final message = (rawMsg is String && rawMsg.trim().isNotEmpty)
-      ? rawMsg
-      : null;
+  final cleaned = rawMsg is String ? portalPlainText(rawMsg) : '';
+  final message = cleaned.isNotEmpty ? cleaned : null;
   if (root['Success'] != true) {
     throw PortalException(message ?? 'Cổng sinh viên từ chối yêu cầu.');
   }
