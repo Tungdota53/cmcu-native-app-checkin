@@ -1,40 +1,49 @@
 workflows:
   ios-workflow:
-    name: iOS Build
+    name: iOS Build (IPA)
     environment:
       xcode: latest
       flutter: stable
-      # Nếu dùng thủ công, hãy thêm các biến môi trường ở đây hoặc trong UI của Codemagic
-      # vars:
-      #   CM_CERTIFICATE: Encrypted(...)
-      #   CM_PROVISIONING_PROFILE: Encrypted(...)
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: "main"
     scripts:
       - name: Setup Flutter & Generate Native Files
         script: |
           rm -rf ios/
           flutter create . --platforms=ios,android --project-name=cmc_checkin --org=com.example
           flutter pub get
-          
+
       - name: Configure Info.plist
         script: |
           INFO_PLIST="ios/Runner/Info.plist"
           /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$INFO_PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$INFO_PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$INFO_PLIST" || true
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.example.cmccheckin" "$INFO_PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.wangganh.cmccheckin" "$INFO_PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$INFO_PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string cmccheckin" "$INFO_PLIST" || true
 
       - name: Install Pods
         script: |
-          cd ios && pod install && cd ..
+          cd ios
+          pod install
+          cd ..
 
       - name: Build iOS IPA
         script: |
-          # Lệnh này sẽ tự động sử dụng Code Signing đã cấu hình ở trên
-          flutter build ipa --release
-          
+          # KHÔNG có --no-codesign → Codemagic sẽ dùng e-sign đã cấu hình
+          flutter build ipa --release \
+            --export-options-plist=ios/ExportOptions.plist
+
     artifacts:
-      - build/ios/ipa/*.ipa          # Lưu file .ipa để tải về
-      - /tmp/xcodebuild_logs/*.log   # Lưu log nếu có lỗi
-      - flutter_drive.log
+      - build/ios/ipa/*.ipa
+      - build/ios/archive/*.xcarchive
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      email:
+        recipients:
+          - quanganh101107@gmail.com  # đổi thành email của bạn
