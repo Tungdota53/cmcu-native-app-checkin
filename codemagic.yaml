@@ -25,6 +25,12 @@ workflows:
           flutter --version
           flutter pub get
 
+      - name: Validate Flutter source
+        script: |
+          set -e
+          flutter analyze
+          flutter test
+
       - name: Prepare iOS project
         script: |
           set -e

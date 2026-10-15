@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 class AppColors {
@@ -38,26 +37,19 @@ class AppColors {
 ThemeData buildTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
 
-  final scheme = ColorScheme.fromSeed(
-    seedColor: AppColors.seed,
-    brightness: brightness,
-  ).copyWith(
-    primary: dark
-        ? AppColors.darkPrimary
-        : AppColors.lightPrimary,
-    onPrimary: dark
-        ? const Color(0xFF1A2C60)
-        : Colors.white,
-    surface: dark
-        ? const Color(0xFF1B1C22)
-        : const Color(0xFFF7F8FF),
-    onSurface: dark
-        ? const Color(0xFFE4E1E9)
-        : const Color(0xFF1B1B21),
-    onSurfaceVariant: dark
-        ? const Color(0xFFC6C5D0)
-        : const Color(0xFF46464F),
-  );
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: AppColors.seed,
+        brightness: brightness,
+      ).copyWith(
+        primary: dark ? AppColors.darkPrimary : AppColors.lightPrimary,
+        onPrimary: dark ? const Color(0xFF1A2C60) : Colors.white,
+        surface: dark ? const Color(0xFF1B1C22) : const Color(0xFFF3F5FA),
+        onSurface: dark ? const Color(0xFFE4E1E9) : const Color(0xFF1B1B21),
+        onSurfaceVariant: dark
+            ? const Color(0xFFC6C5D0)
+            : const Color(0xFF46464F),
+      );
 
   return ThemeData(
     useMaterial3: true,
@@ -68,16 +60,40 @@ ThemeData buildTheme(Brightness brightness) {
     cardTheme: CardThemeData(
       elevation: 0,
       margin: EdgeInsets.zero,
-      color: scheme.surfaceContainerHighest,
+      color: dark ? const Color(0xFF242733) : Colors.white,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .45)),
       ),
     ),
 
     appBarTheme: AppBarTheme(
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: dark ? const Color(0xFF242733) : Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: scheme.outlineVariant),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: scheme.outlineVariant),
+      ),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: dark ? const Color(0xFF1B1C22) : Colors.white,
+      indicatorColor: scheme.primaryContainer,
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
     ),
   );
 }
