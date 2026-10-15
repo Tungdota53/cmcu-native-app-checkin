@@ -1,0 +1,17 @@
+workflows:
+  ios-workflow:
+    name: iOS Build
+    environment:
+      xcode: latest
+      flutter: stable
+    scripts:
+      - name: Generate native structure
+        script: |
+          flutter create . --project-name cmc_checkin --org com.example
+          flutter pub get
+      - name: Install pods
+        script: |
+          cd ios && pod install && cd ..
+      - name: Build iOS
+        script: |
+          flutter build ios --release --no-codesign
