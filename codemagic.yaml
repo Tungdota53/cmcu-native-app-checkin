@@ -22,41 +22,8 @@ workflows:
       - name: Prepare Flutter project
         script: |
           set -e
-          rm -rf ios/
-          flutter create . \
-            --platforms=ios,android \
-            --project-name=cmc_checkin \
-            --org=com.wangganh
+          flutter --version
           flutter pub get
-
-      - name: Configure iOS
-        script: |
-          set -e
-          INFO_PLIST="ios/Runner/Info.plist"
-
-          /usr/libexec/PlistBuddy \
-            -c "Add :ITSAppUsesNonExemptEncryption bool false" \
-            "$INFO_PLIST" || true
-
-          /usr/libexec/PlistBuddy \
-            -c "Add :CFBundleURLTypes array" \
-            "$INFO_PLIST" || true
-
-          /usr/libexec/PlistBuddy \
-            -c "Add :CFBundleURLTypes:0 dict" \
-            "$INFO_PLIST" || true
-
-          /usr/libexec/PlistBuddy \
-            -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.wangganh.cmccheckin" \
-            "$INFO_PLIST" || true
-
-          /usr/libexec/PlistBuddy \
-            -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" \
-            "$INFO_PLIST" || true
-
-          /usr/libexec/PlistBuddy \
-            -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string cmccheckin" \
-            "$INFO_PLIST" || true
 
       - name: Install CocoaPods
         script: |
@@ -68,39 +35,66 @@ workflows:
       - name: Build unsigned iOS app
         script: |
           set -e
-          flutter build ios --release --no-codesign
 
-          APP_PATH="build/ios/iphoneos/Runner.app"
+          WORKSPACE="$CM_BUILD_DIR/ios/Runner.xcworkspace"
+          DERIVED="$CM_BUILD_DIR/ios_derived"
+          APP_PATH="$DERIVED/Build/Products/Release-iphoneos/Runner.app"
 
-          if [ ! -d "$APP_PATH" ]; then
-            echo "ERROR: Runner.app was not generated"
-            find build/ios -maxdepth 4 -print
+          if [ ! -d "$WORKSPACE" ]; then
+            echo "ERROR: Runner.xcworkspace not found"
             exit 1
           fi
+
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$DERIVED" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: Runner.app not found"
+            find "$DERIVED/Build/Products" -maxdepth 3 -print
+            exit 1
+          fi
+
+          echo "Unsigned app built successfully"
 
       - name: Package unsigned IPA
         script: |
           set -e
 
-          APP_PATH="build/ios/iphoneos/Runner.app"
+          APP_PATH="$CM_BUILD_DIR/ios_derived/Build/Products/Release-iphoneos/Runner.app"
           IPA_DIR="$CM_BUILD_DIR/build/ios/ipa"
           PACKAGE_DIR="$CM_BUILD_DIR/unsigned_package"
 
-          mkdir -p "$IPA_DIR"
+          test -d "$APP_PATH"
+
           rm -rf "$PACKAGE_DIR"
           mkdir -p "$PACKAGE_DIR/Payload"
+          mkdir -p "$IPA_DIR"
+
+          rm -f "$IPA_DIR/CMC-Checkin-unsigned.ipa"
 
           cp -R "$APP_PATH" "$PACKAGE_DIR/Payload/Runner.app"
 
           cd "$PACKAGE_DIR"
-          zip -qry "$IPA_DIR/CMC-Checkin-unsigned.ipa" Payload
+          /usr/bin/zip -qry "$IPA_DIR/CMC-Checkin-unsigned.ipa" Payload
 
           test -s "$IPA_DIR/CMC-Checkin-unsigned.ipa"
-          echo "Unsigned IPA created successfully"
+
+          echo "IPA created:"
+          ls -lh "$IPA_DIR/CMC-Checkin-unsigned.ipa"
 
     artifacts:
       - build/ios/ipa/*.ipa
-      - build/ios/iphoneos/Runner.app
+      - ios_derived/Build/Products/Release-iphoneos/Runner.app
       - /tmp/xcodebuild_logs/*.log
 
     publishing:
