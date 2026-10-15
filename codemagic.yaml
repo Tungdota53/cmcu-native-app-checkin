@@ -13,7 +13,7 @@ workflows:
       - name: Setup Flutter & Generate Native Files
         script: |
           rm -rf ios/
-          flutter create . --platforms=ios,android --project-name=cmc_checkin --org=com.example
+          flutter create . --platforms=ios,android --project-name=cmc_checkin --org=com.wangganh
           flutter pub get
 
       - name: Configure Info.plist
