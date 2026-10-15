@@ -2,6 +2,12 @@ import 'package:intl/intl.dart';
 
 import '../core/models.dart';
 
+String gradeNumber(double? value, [int precision = 2]) => value == null
+    ? '—'
+    : precision == 0
+    ? value.toStringAsFixed(0)
+    : value.toStringAsFixed(precision).replaceFirst(RegExp(r'\.?0+$'), '');
+
 String dayTitle(DateTime d) =>
     '${d.weekday == 7 ? 'Chủ nhật' : 'Thứ ${d.weekday + 1}'}, ${DateFormat('dd/MM/yyyy').format(d)}';
 String sheetDate(DateTime d) => DateFormat('dd/MM/yyyy').format(d);

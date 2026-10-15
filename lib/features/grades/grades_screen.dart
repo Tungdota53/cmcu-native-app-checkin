@@ -3,11 +3,9 @@ import 'package:flutter/material.dart';
 import '../../core/academic_models.dart';
 import '../../core/portal_api.dart';
 import '../../theme/motion.dart';
+import '../../theme/formatters.dart';
+import 'academic_overview.dart';
 import 'grades_controller.dart';
-
-String gradeNumber(double? value, [int precision = 2]) => value == null
-    ? '—'
-    : value.toStringAsFixed(precision).replaceFirst(RegExp(r'\.?0+$'), '');
 
 class GradesScreen extends StatefulWidget {
   const GradesScreen({
@@ -166,7 +164,7 @@ class _GradesScreenState extends State<GradesScreen> {
                   ],
                   if (record != null) ...[
                     Reveal(
-                      child: _Summary(
+                      child: AcademicOverview(
                         summary: record.summary(c.term),
                         term: c.term,
                       ),
@@ -393,97 +391,6 @@ class _GradesScreenState extends State<GradesScreen> {
         ),
       );
     },
-  );
-}
-
-class _Summary extends StatelessWidget {
-  const _Summary({required this.summary, this.term});
-  final AcademicSummary summary;
-  final AcademicTerm? term;
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(24),
-      gradient: const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF172C65), Color(0xFF365BC4)],
-      ),
-    ),
-    child: DefaultTextStyle.merge(
-      style: const TextStyle(color: Colors.white),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.auto_graph_rounded, color: Color(0xFFBDDAFF)),
-              const SizedBox(width: 10),
-              Expanded(child: Text(term?.label ?? 'TỔNG QUAN TÍCH LŨY')),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 32,
-            runSpacing: 20,
-            children: [
-              _Metric(
-                value: gradeNumber(summary.average4),
-                label: term == null
-                    ? 'GPA tích lũy / 4'
-                    : 'Trung bình học kỳ / 4',
-              ),
-              _Metric(
-                value: gradeNumber(summary.average10),
-                label: 'Điểm trung bình / 10',
-              ),
-              _Metric(
-                value: gradeNumber(summary.earnedCredits),
-                label: 'Tín chỉ tích lũy',
-              ),
-            ],
-          ),
-          if (term == null &&
-              summary.earnedCredits != null &&
-              summary.curriculumCredits != null &&
-              summary.curriculumCredits! > 0) ...[
-            const SizedBox(height: 20),
-            LinearProgressIndicator(
-              value: (summary.earnedCredits! / summary.curriculumCredits!)
-                  .clamp(0, 1),
-              minHeight: 6,
-              borderRadius: BorderRadius.circular(4),
-              color: const Color(0xFF96E4D1),
-              backgroundColor: Colors.white24,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${gradeNumber(summary.earnedCredits)} / ${gradeNumber(summary.curriculumCredits)} tín chỉ chương trình',
-            ),
-          ],
-        ],
-      ),
-    ),
-  );
-}
-
-class _Metric extends StatelessWidget {
-  const _Metric({required this.value, required this.label});
-  final String value, label;
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        value,
-        style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800),
-      ),
-      Text(
-        label,
-        style: const TextStyle(color: Color(0xFFE0E9FF), fontSize: 12),
-      ),
-    ],
   );
 }
 

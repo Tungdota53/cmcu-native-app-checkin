@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/models.dart';
 import 'core/app_preferences.dart';
+import 'core/app_brand.dart';
 import 'core/portal_api.dart';
 import 'core/session_store.dart';
 import 'core/web_session.dart';
@@ -42,7 +43,7 @@ class _CmcCheckinAppState extends State<CmcCheckinApp> {
     return ListenableBuilder(
       listenable: _preferences,
       builder: (context, _) => MaterialApp(
-        title: 'CMC Check-in',
+        title: AppBrand.name,
         debugShowCheckedModeBanner: false,
         locale: const Locale('vi'),
         supportedLocales: const [Locale('vi')],

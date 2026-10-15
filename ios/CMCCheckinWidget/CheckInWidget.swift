@@ -92,32 +92,38 @@ private struct CheckInWidgetView: View {
         let ongoing = selection.1
 
         let label: String = {
-            if snap?.signedIn != true { return "CMC Check-in" }
-            if valid != true || snap?.loaded == false { return "Attendance" }
-            return ongoing ? "Now" : (selected == nil ? "Attendance" : "Next")
+            if snap?.signedIn != true { return "IU CheckIn" }
+            if valid != true || snap?.loaded == false { return "IU CheckIn" }
+            return ongoing ? "IU CheckIn · Đang học" : (selected == nil ? "IU CheckIn" : "IU CheckIn · Sắp tới")
         }()
         let headline: String = {
-            if snap?.signedIn != true { return "Sign in to view schedule" }
-            if valid != true || snap?.loaded == false { return "Schedule not loaded yet" }
-            return selected?.subject ?? "No more classes today"
+            if snap?.signedIn != true { return "Đăng nhập để xem lịch học" }
+            if valid != true || snap?.loaded == false { return "Mở app để cập nhật lịch" }
+            return selected?.subject ?? "Đã hoàn tất lịch hôm nay"
         }()
         let target = URL(string: ongoing ? "cmccheckin://checkin" : "cmccheckin://open")!
 
         Link(destination: target) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(label).font(.caption).fontWeight(.semibold)
+                    .foregroundStyle(Color(red: 0.46, green: 0.87, blue: 0.92))
+                    .lineLimit(1).minimumScaleFactor(0.75)
                 Text(headline).font(.headline).lineLimit(2)
                 if let selected {
                     Text([selected.timeRange, selected.room].compactMap { $0 }.joined(separator: " · "))
                         .font(.caption).lineLimit(2)
                 }
                 Spacer(minLength: 2)
-                Text(ongoing ? "Enter keyword" : "Open schedule")
+                Text(ongoing ? "Nhập từ khóa →" : "Mở lịch học →")
                     .font(.caption).fontWeight(.medium)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .foregroundStyle(.white)
         }
-        .containerBackground(for: .widget) { Color(uiColor: .secondarySystemBackground) }
+        .containerBackground(for: .widget) {
+            LinearGradient(colors: [Color(red: 0.06, green: 0.21, blue: 0.33), Color(red: 0.05, green: 0.33, blue: 0.40)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
     }
 }
 
@@ -127,8 +133,8 @@ struct CheckInWidget: Widget {
         StaticConfiguration(kind: "CheckInWidget", provider: CheckInProvider()) { entry in
             CheckInWidgetView(entry: entry)
         }
-        .configurationDisplayName("CMC Check-in")
-        .description("Current or next class and a shortcut to enter the attendance keyword.")
+        .configurationDisplayName("IU CheckIn")
+        .description("Lớp đang học, lớp kế tiếp và lối tắt điểm danh.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

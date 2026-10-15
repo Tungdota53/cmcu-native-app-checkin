@@ -1,4 +1,4 @@
-# Đề xuất nâng cấp toàn diện CMC Check-in
+# Đề xuất nâng cấp toàn diện IU CheckIn
 
 Đây là backlog đề xuất sau phần đã triển khai ngày 15/10/2026. Các mục bên dưới chưa được coi là chức năng đã có.
 

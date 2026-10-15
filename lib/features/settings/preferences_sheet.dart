@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_preferences.dart';
+import '../../core/app_brand.dart';
+import '../../theme/campus_brand.dart';
 
 class PreferencesSheet extends StatelessWidget {
   const PreferencesSheet({
@@ -32,6 +34,33 @@ class PreferencesSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            Row(
+              children: [
+                const CampusEmblem(),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AppBrand.name,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        AppBrand.tagline,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
             Text(
               'Theo cách của bạn',
               style: Theme.of(

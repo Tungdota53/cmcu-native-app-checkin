@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/app_preferences.dart';
 import '../../theme/formatters.dart';
 import '../../theme/motion.dart';
+import '../../theme/campus_brand.dart';
 import '../grades/grades_controller.dart';
 import '../grades/grades_screen.dart';
 import '../settings/preferences_sheet.dart';
@@ -180,20 +181,10 @@ class _ScheduleScreenState extends State<ScheduleScreen>
       return Scaffold(
         appBar: AppBar(
           toolbarHeight: 24 + MediaQuery.textScalerOf(context).scale(44),
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _tab == 0 ? 'Lịch học' : 'Kết quả học tập',
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              Text(
-                _tab == 0 ? weekLabel(c.weekStart) : 'CMC STUDENT',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: s.onSurfaceVariant),
-              ),
-            ],
+          title: CampusWordmark(
+            subtitle: _tab == 0
+                ? weekLabel(c.weekStart)
+                : 'Hồ sơ học tập cá nhân',
           ),
           actions: [
             if (_tab == 0)
@@ -210,27 +201,41 @@ class _ScheduleScreenState extends State<ScheduleScreen>
             const SizedBox(width: 6),
           ],
         ),
-        bottomNavigationBar: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(color: s.outlineVariant.withValues(alpha: .3)),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: s.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: s.outlineVariant.withValues(alpha: .45),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF062A3D).withValues(alpha: .10),
+                  blurRadius: 24,
+                  offset: const Offset(0, 5),
+                ),
+              ],
             ),
-          ),
-          child: NavigationBar(
-            selectedIndex: _tab,
-            onDestinationSelected: _selectTab,
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.calendar_month_outlined),
-                selectedIcon: Icon(Icons.calendar_month_rounded),
-                label: 'Lịch học',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.school_outlined),
-                selectedIcon: Icon(Icons.school_rounded),
-                label: 'Kết quả',
-              ),
-            ],
+            child: NavigationBar(
+              selectedIndex: _tab,
+              onDestinationSelected: _selectTab,
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.calendar_month_outlined),
+                  selectedIcon: Icon(Icons.calendar_month_rounded),
+                  label: 'Lịch học',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.school_outlined),
+                  selectedIcon: Icon(Icons.school_rounded),
+                  label: 'Kết quả',
+                ),
+              ],
+            ),
           ),
         ),
         body: SafeArea(

@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models.dart';
+import '../../theme/campus_brand.dart';
 import '../../core/portal_api.dart' show portalOrigin;
 
 const _loginUrl = '$portalOrigin/congthongtin/login.aspx';
@@ -112,7 +113,8 @@ class _LoginScreenState extends State<LoginScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Đăng nhập tài khoản trường'),
+          toolbarHeight: 24 + MediaQuery.textScalerOf(context).scale(44),
+          title: const CampusWordmark(subtitle: 'Đăng nhập tài khoản trường'),
           bottom: _progress < 1
               ? PreferredSize(
                   preferredSize: const Size.fromHeight(3),

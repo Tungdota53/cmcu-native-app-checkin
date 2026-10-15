@@ -3,17 +3,17 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  static const seed = Color(0xFF315DC4);
-  static const lightPrimary = Color(0xFF315DC4);
-  static const darkPrimary = Color(0xFFB9CEFF);
+  static const seed = Color(0xFF087A96);
+  static const lightPrimary = Color(0xFF086C84);
+  static const darkPrimary = Color(0xFF75DEEB);
 
   /// Bảng màu dùng để phân biệt lớp học phần.
   static const classColors = <Color>[
-    Color(0xFF223771),
-    Color(0xFFD49F3A),
-    Color(0xFFEC4C00),
-    Color(0xFF5A7ADB),
-    Color(0xFF3C5398),
+    Color(0xFF45C5D9),
+    Color(0xFF83C3FC),
+    Color(0xFF9F98E8),
+    Color(0xFFE4BD78),
+    Color(0xFF76CDB3),
   ];
 
   /// Tương thích với thuật toán hash của Java String,
@@ -43,15 +43,21 @@ ThemeData buildTheme(Brightness brightness) {
         brightness: brightness,
       ).copyWith(
         primary: dark ? AppColors.darkPrimary : AppColors.lightPrimary,
-        onPrimary: dark ? const Color(0xFF1A2C60) : Colors.white,
-        surface: dark ? const Color(0xFF111722) : const Color(0xFFF5F7FB),
-        onSurface: dark ? const Color(0xFFE8EDF6) : const Color(0xFF18273F),
+        onPrimary: dark ? const Color(0xFF003541) : Colors.white,
+        primaryContainer: dark
+            ? const Color(0xFF133E50)
+            : const Color(0xFFD5F1F6),
+        onPrimaryContainer: dark
+            ? const Color(0xFFB4F4FC)
+            : const Color(0xFF06485B),
+        surface: dark ? const Color(0xFF081722) : const Color(0xFFF0F6F8),
+        onSurface: dark ? const Color(0xFFEDF6FC) : const Color(0xFF153247),
         onSurfaceVariant: dark
-            ? const Color(0xFFADBBD0)
-            : const Color(0xFF5A6A80),
+            ? const Color(0xFFACC1D1)
+            : const Color(0xFF577184),
         outlineVariant: dark
-            ? const Color(0xFF425168)
-            : const Color(0xFFD6DFEC),
+            ? const Color(0xFF365060)
+            : const Color(0xFFCDDFE7),
       );
 
   return ThemeData(
@@ -61,12 +67,13 @@ ThemeData buildTheme(Brightness brightness) {
 
     // Flutter mới yêu cầu CardThemeData cho ThemeData.cardTheme.
     cardTheme: CardThemeData(
-      elevation: 0,
+      elevation: dark ? 0 : 1,
+      shadowColor: const Color(0xFF16485C).withValues(alpha: .07),
       margin: EdgeInsets.zero,
-      color: dark ? const Color(0xFF1B2535) : Colors.white,
+      color: dark ? const Color(0xFF112A3B) : Colors.white,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .45)),
       ),
     ),
@@ -79,7 +86,7 @@ ThemeData buildTheme(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: dark ? const Color(0xFF1B2535) : Colors.white,
+      fillColor: dark ? const Color(0xFF102738) : Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
@@ -91,12 +98,12 @@ ThemeData buildTheme(Brightness brightness) {
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: dark ? const Color(0xFF151E2C) : Colors.white,
+      backgroundColor: dark ? const Color(0xFF102738) : Colors.white,
       indicatorColor: scheme.primaryContainer,
-      height: 76,
+      height: 68,
     ),
     bottomSheetTheme: BottomSheetThemeData(
-      backgroundColor: dark ? const Color(0xFF182232) : Colors.white,
+      backgroundColor: dark ? const Color(0xFF102738) : Colors.white,
       surfaceTintColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),

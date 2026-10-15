@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/models.dart';
 import '../../theme/formatters.dart';
 import '../../theme/motion.dart';
+import '../../theme/campus_brand.dart';
 import 'entry_card.dart';
 import 'schedule_controller.dart';
 import 'week_strip.dart';
@@ -66,7 +67,65 @@ class _ScheduleContentState extends State<ScheduleContent> {
           SliverToBoxAdapter(
             child: Column(
               children: [
-                WeekStrip(controller: c),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'KẾ HOẠCH CÁ NHÂN',
+                              style: t.labelSmall?.copyWith(
+                                color: s.primary,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              'Lịch học',
+                              style: t.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: s.primaryContainer,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          '${c.entries.length} buổi / tuần',
+                          style: t.labelSmall?.copyWith(
+                            color: s.onPrimaryContainer,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardTheme.color,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: s.outlineVariant.withValues(alpha: .45),
+                    ),
+                  ),
+                  child: WeekStrip(controller: c),
+                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                   child: Column(
@@ -311,17 +370,14 @@ class _DayOverview extends StatelessWidget {
         : today
         ? 'HÔM NAY CỦA BẠN'
         : 'LỊCH CỦA BẠN';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF19366B), Color(0xFF356AD4)],
-        ),
-      ),
+    final finished = entries
+        .where(
+          (e) =>
+              e.date.isBefore(dateOnly(c.now)) ||
+              (today && e.endMinutes <= minuteOfDay(c.now)),
+        )
+        .length;
+    return CampusSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -329,7 +385,7 @@ class _DayOverview extends StatelessWidget {
             children: [
               const Icon(
                 Icons.wb_sunny_outlined,
-                color: Color(0xFFCBE5FF),
+                color: CampusColors.cyan,
                 size: 18,
               ),
               const SizedBox(width: 8),
@@ -337,7 +393,7 @@ class _DayOverview extends StatelessWidget {
                 child: Text(
                   label,
                   style: const TextStyle(
-                    color: Color(0xFFCBE5FF),
+                    color: CampusColors.cyan,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.2,
@@ -367,7 +423,7 @@ class _DayOverview extends StatelessWidget {
                       (entries.isEmpty
                           ? 'Một ngày nhẹ nhàng'
                           : 'Đã hoàn tất lịch hôm nay'),
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w800,
               height: 1.25,
@@ -384,32 +440,49 @@ class _DayOverview extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Wrap(
-            spacing: 16,
+            spacing: 8,
             runSpacing: 8,
             children: [
-              _OverviewStat(
+              CampusGlassStat(
                 icon: Icons.layers_outlined,
                 label: '${entries.length} buổi',
               ),
               if (entries.any((e) => e.periodCount > 0))
-                _OverviewStat(
+                CampusGlassStat(
+                  color: CampusColors.mint,
                   icon: Icons.schedule_rounded,
                   label:
                       '${entries.fold<int>(0, (sum, e) => sum + e.periodCount)} tiết',
                 ),
               if (entries.any((e) => e.isExam))
-                _OverviewStat(
+                CampusGlassStat(
+                  color: CampusColors.gold,
                   icon: Icons.edit_calendar_outlined,
                   label: '${entries.where((e) => e.isExam).length} lịch thi',
                 ),
             ],
           ),
+          if (entries.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            LinearProgressIndicator(
+              value: finished / entries.length,
+              minHeight: 4,
+              borderRadius: BorderRadius.circular(4),
+              color: CampusColors.cyan,
+              backgroundColor: Colors.white.withValues(alpha: .10),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              'Đã kết thúc $finished/${entries.length} buổi',
+              style: const TextStyle(color: Color(0xFFBBD9E7), fontSize: 11),
+            ),
+          ],
           if (focus != null && live != null && !focus.isPresent) ...[
             const SizedBox(height: 18),
             FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF19366B),
+                foregroundColor: CampusColors.navy,
               ),
               onPressed: () => c.openCheckIn(focus),
               icon: const Icon(Icons.how_to_reg_outlined, size: 18),
@@ -420,28 +493,4 @@ class _DayOverview extends StatelessWidget {
       ),
     );
   }
-}
-
-class _OverviewStat extends StatelessWidget {
-  const _OverviewStat({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(icon, size: 16, color: const Color(0xFFCBE5FF)),
-      const SizedBox(width: 6),
-      Flexible(
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    ],
-  );
 }

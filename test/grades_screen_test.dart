@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:cmc_checkin/core/academic_models.dart';
+import 'package:cmc_checkin/core/app_brand.dart';
 import 'package:cmc_checkin/core/models.dart';
 import 'package:cmc_checkin/core/portal_api.dart';
 import 'package:cmc_checkin/features/schedule/schedule_controller.dart';
@@ -90,18 +91,33 @@ void main() {
   Future<void> capture(WidgetTester tester, String name) async {
     final directory = Platform.environment['CMC_PREVIEW_DIR'];
     if (directory == null) return;
-    await tester.runAsync(() async {
-      final boundary = tester.renderObject<RenderRepaintBoundary>(
-        find.byKey(previewKey),
+    final previousShadows = debugDisableShadows;
+    try {
+      debugDisableShadows = false;
+      void repaint(RenderObject object) {
+        object.markNeedsPaint();
+        object.visitChildren(repaint);
+      }
+
+      repaint(
+        tester.renderObject<RenderRepaintBoundary>(find.byKey(previewKey)),
       );
-      final image = await boundary.toImage(pixelRatio: 2);
-      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-      await File('$directory/$name.png').create(recursive: true);
-      await File(
-        '$directory/$name.png',
-      ).writeAsBytes(bytes!.buffer.asUint8List());
-      image.dispose();
-    });
+      await tester.pump();
+      await tester.runAsync(() async {
+        final boundary = tester.renderObject<RenderRepaintBoundary>(
+          find.byKey(previewKey),
+        );
+        final image = await boundary.toImage(pixelRatio: 2);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        await File('$directory/$name.png').create(recursive: true);
+        await File(
+          '$directory/$name.png',
+        ).writeAsBytes(bytes!.buffer.asUint8List());
+        image.dispose();
+      });
+    } finally {
+      debugDisableShadows = previousShadows;
+    }
   }
 
   Future<ScreenApi> mount(
@@ -148,6 +164,12 @@ void main() {
             onSessionExpired: () {},
           ),
         ),
+      ),
+    );
+    await tester.runAsync(
+      () => precacheImage(
+        const AssetImage(AppBrand.emblemAsset),
+        tester.element(find.byType(ScheduleScreen)),
       ),
     );
     await tester.pumpAndSettle();
@@ -229,11 +251,11 @@ void main() {
             matching: find.byType(Scrollable),
           )
           .first;
-      await tester.scrollUntilVisible(
-        find.byType(EntryCard).first,
-        200,
-        scrollable: scrollable,
+      final lessonCard = find.byWidgetPredicate(
+        (widget) =>
+            widget is EntryCard && widget.entry.id == 'lesson-synthetic',
       );
+      await tester.scrollUntilVisible(lessonCard, 200, scrollable: scrollable);
       expect(find.textContaining('<br>'), findsNothing);
       expect(find.text('Có mặt'), findsOneWidget);
       await capture(tester, 'schedule-dark');
