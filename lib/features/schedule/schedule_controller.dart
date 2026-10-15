@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
 import '../../core/models.dart';
 import '../../core/portal_api.dart';
 import '../../core/public_ip.dart';
@@ -27,15 +29,14 @@ class CheckInState {
     String? result,
     bool clearResult = false,
     bool? succeeded,
-  }) =>
-      CheckInState(
-        entry: entry,
-        focusKeyword: focusKeyword,
-        ip: ip ?? this.ip,
-        sending: sending ?? this.sending,
-        result: clearResult ? null : (result ?? this.result),
-        succeeded: succeeded ?? this.succeeded,
-      );
+  }) => CheckInState(
+    entry: entry,
+    focusKeyword: focusKeyword,
+    ip: ip ?? this.ip,
+    sending: sending ?? this.sending,
+    result: clearResult ? null : (result ?? this.result),
+    succeeded: succeeded ?? this.succeeded,
+  );
 }
 
 class ScheduleController extends ChangeNotifier {
@@ -52,7 +53,8 @@ class ScheduleController extends ChangeNotifier {
 
   final PortalApi api;
   final String fallbackIp;
-  final void Function(DateTime weekStart, List<ScheduleEntry> entries)? onCurrentWeekLoaded;
+  final void Function(DateTime weekStart, List<ScheduleEntry> entries)?
+  onCurrentWeekLoaded;
 
   late DateTime _weekStart;
   late DateTime _selectedDay;
@@ -93,7 +95,8 @@ class ScheduleController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  void previousWeek() => _moveTo(_selectedDay.subtract(const Duration(days: 7)));
+  void previousWeek() =>
+      _moveTo(_selectedDay.subtract(const Duration(days: 7)));
   void nextWeek() => _moveTo(_selectedDay.add(const Duration(days: 7)));
   void goToToday() => _moveTo(DateTime.now());
   void selectDay(DateTime d) {
@@ -140,8 +143,8 @@ class ScheduleController extends ChangeNotifier {
     if (entry == null) {
       final next = nextClass(weekEntries, now);
       _notice = next != null
-          ? 'No class right now. Next: ${next.subject} at ${next.startTime}.'
-          : 'No class right now.';
+          ? 'Chưa có lớp đang học. Tiếp theo: ${next.subject} lúc ${next.startTime}.'
+          : 'Hiện không có lớp đang học.';
       _emit();
       return;
     }
@@ -165,7 +168,8 @@ class ScheduleController extends ChangeNotifier {
     _showCheckIn(entry, focusKeyword: true);
   }
 
-  void openCheckIn(ScheduleEntry entry) => _showCheckIn(entry, focusKeyword: false);
+  void openCheckIn(ScheduleEntry entry) =>
+      _showCheckIn(entry, focusKeyword: false);
 
   void dismissCheckIn() {
     if (_checkIn == null) return;
@@ -198,13 +202,28 @@ class ScheduleController extends ChangeNotifier {
     CheckInState? outcome;
     try {
       final message = await api.checkIn(current.entry, trimmed, ip);
-      outcome = current.copyWith(ip: ip, sending: false, result: message, succeeded: true);
+      outcome = current.copyWith(
+        ip: ip,
+        sending: false,
+        result: message,
+        succeeded: true,
+      );
     } on SessionExpiredException {
       _sessionExpired = true;
     } on PortalException catch (e) {
-      outcome = current.copyWith(ip: ip, sending: false, result: e.message, succeeded: false);
+      outcome = current.copyWith(
+        ip: ip,
+        sending: false,
+        result: e.message,
+        succeeded: false,
+      );
     } catch (_) {
-      outcome = current.copyWith(ip: ip, sending: false, result: offlineMessage, succeeded: false);
+      outcome = current.copyWith(
+        ip: ip,
+        sending: false,
+        result: offlineMessage,
+        succeeded: false,
+      );
     }
     if (_checkIn?.entry.id == current.entry.id) _checkIn = outcome;
     _emit();
@@ -232,7 +251,10 @@ class ScheduleController extends ChangeNotifier {
 
   Future<void> _fetch(DateTime start, int token) async {
     try {
-      final result = await api.weekSchedule(start, start.add(const Duration(days: 6)));
+      final result = await api.weekSchedule(
+        start,
+        start.add(const Duration(days: 6)),
+      );
       if (token != _loadToken || _disposed) return;
       _weeks[start] = result;
       if (_weekStart == start) {

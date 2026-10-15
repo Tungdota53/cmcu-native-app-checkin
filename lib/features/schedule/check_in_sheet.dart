@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../theme/formatters.dart';
 import 'schedule_controller.dart';
 
@@ -48,10 +49,18 @@ class _CheckInSheetState extends State<CheckInSheet> {
         final e = st.entry;
         final s = Theme.of(context).colorScheme;
         final t = Theme.of(context).textTheme;
-        final subtitle = [sheetDate(e.date), timeLine(e), if (e.room != null) e.room!].join(' · ');
-        final ipText = st.ip == null ? 'looking up…' : (st.ip!.isEmpty ? 'unknown' : st.ip!);
+        final subtitle = [
+          sheetDate(e.date),
+          timeLine(e),
+          if (e.room != null) e.room!,
+        ].join(' · ');
+        final ipText = st.ip == null
+            ? 'đang tra cứu…'
+            : (st.ip!.isEmpty ? 'chưa xác định' : st.ip!);
         return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
             child: Column(
@@ -60,19 +69,29 @@ class _CheckInSheetState extends State<CheckInSheet> {
               children: [
                 Text(e.subject, style: t.titleLarge),
                 const SizedBox(height: 12),
-                Text(subtitle, style: t.bodyMedium?.copyWith(color: s.onSurfaceVariant)),
+                Text(
+                  subtitle,
+                  style: t.bodyMedium?.copyWith(color: s.onSurfaceVariant),
+                ),
                 if (e.attendance != null) ...[
                   const SizedBox(height: 12),
-                  Text(e.attendance!, style: t.labelLarge?.copyWith(color: s.tertiary)),
+                  Text(
+                    e.attendance!,
+                    style: t.labelLarge?.copyWith(color: s.tertiary),
+                  ),
                 ],
                 const SizedBox(height: 12),
                 if (e.isExam)
-                  Text("Check-in isn't available for exams.", style: t.bodyMedium)
+                  Text(
+                    'Không hỗ trợ điểm danh cho lịch thi.',
+                    style: t.bodyMedium,
+                  )
                 else ...[
                   ValueListenableBuilder<TextEditingValue>(
                     valueListenable: _text,
                     builder: (context, value, _) {
-                      final canSubmit = value.text.trim().isNotEmpty && !st.sending;
+                      final canSubmit =
+                          value.text.trim().isNotEmpty && !st.sending;
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -83,29 +102,39 @@ class _CheckInSheetState extends State<CheckInSheet> {
                             textInputAction: TextInputAction.done,
                             autocorrect: false,
                             enableSuggestions: false,
-                            onSubmitted: (v) => widget.controller.submitCheckIn(v),
+                            onSubmitted: (v) =>
+                                widget.controller.submitCheckIn(v),
                             decoration: const InputDecoration(
-                              labelText: 'Attendance keyword',
+                              labelText: 'Từ khóa điểm danh',
+                              helperText: 'Nhập từ khóa do giảng viên cung cấp',
                               border: OutlineInputBorder(),
                             ),
                           ),
                           const SizedBox(height: 12),
-                          Text('IP shown to the lecturer: $ipText',
-                              style: t.bodySmall?.copyWith(color: s.onSurfaceVariant)),
+                          Text(
+                            'IP gửi cho giảng viên: $ipText',
+                            style: t.bodySmall?.copyWith(
+                              color: s.onSurfaceVariant,
+                            ),
+                          ),
                           const SizedBox(height: 12),
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton(
                               onPressed: canSubmit
-                                  ? () => widget.controller.submitCheckIn(_text.text)
+                                  ? () => widget.controller.submitCheckIn(
+                                      _text.text,
+                                    )
                                   : null,
                               child: st.sending
                                   ? const SizedBox(
                                       width: 18,
                                       height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
-                                  : const Text('Check in'),
+                                  : const Text('Xác nhận điểm danh'),
                             ),
                           ),
                         ],
@@ -114,9 +143,12 @@ class _CheckInSheetState extends State<CheckInSheet> {
                   ),
                   if (st.result != null) ...[
                     const SizedBox(height: 12),
-                    Text(st.result!,
-                        style: t.bodyMedium
-                            ?.copyWith(color: st.succeeded ? s.primary : s.error)),
+                    Text(
+                      st.result!,
+                      style: t.bodyMedium?.copyWith(
+                        color: st.succeeded ? s.primary : s.error,
+                      ),
+                    ),
                   ],
                 ],
               ],

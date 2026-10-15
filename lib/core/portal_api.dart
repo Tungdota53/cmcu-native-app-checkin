@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:http/http.dart' as http;
+
 import 'models.dart';
+import 'academic_models.dart';
 import 'portal_crypto.dart';
 
 const String portalOrigin = 'https://iu.cmcu.edu.vn';
@@ -26,7 +29,7 @@ class PortalException implements Exception {
 }
 
 const String offlineMessage =
-    "Couldn't reach the portal. Check your connection and try again.";
+    'Không thể kết nối cổng sinh viên. Kiểm tra mạng và thử lại.';
 
 Uri apiUri(String action) {
   final i = action.indexOf('_');
@@ -48,20 +51,25 @@ PortalResponse parseResponse(String body) {
   try {
     root = jsonDecode(body);
   } on FormatException {
-    throw PortalException('Unexpected response from the portal.');
+    throw PortalException('Phản hồi từ cổng sinh viên không hợp lệ.');
   }
-  if (root is! Map) throw PortalException('Unexpected response from the portal.');
+  if (root is! Map)
+    throw PortalException('Phản hồi từ cổng sinh viên không hợp lệ.');
   final rawMsg = root['Message'];
-  final message = (rawMsg is String && rawMsg.trim().isNotEmpty) ? rawMsg : null;
+  final message = (rawMsg is String && rawMsg.trim().isNotEmpty)
+      ? rawMsg
+      : null;
   if (root['Success'] != true) {
-    throw PortalException(message ?? 'The portal rejected the request.');
+    throw PortalException(message ?? 'Cổng sinh viên từ chối yêu cầu.');
   }
   Object? data = root['Data'];
   if (data is Map && data['B'] is String) {
     try {
-      data = jsonDecode(PortalCrypto.decrypt(data['B'] as String, PortalCrypto.im));
+      data = jsonDecode(
+        PortalCrypto.decrypt(data['B'] as String, PortalCrypto.im),
+      );
     } on FormatException {
-      throw PortalException("Couldn't read the portal's response.");
+      throw PortalException('Không đọc được dữ liệu từ cổng sinh viên.');
     }
   }
   return PortalResponse(data, message);
@@ -100,40 +108,116 @@ class PortalApi {
     return parseSchedule(parseResponse(body).data);
   }
 
+  Future<Object?> _academicRequest(
+    String action,
+    Map<String, String> fields,
+  ) async {
+    if (session.gradesChucNangId.isEmpty) {
+      throw PortalException(
+        'Cần đăng nhập lại để cập nhật quyền xem điểm học.',
+      );
+    }
+    final payload = jsonEncode(<String, String>{'action': action, ...fields});
+    final body = await _post(action, {
+      'A': PortalCrypto.encrypt(payload, action.split('/').last),
+    });
+    return parseResponse(body).data;
+  }
+
+  Future<List<StudyProgram>> studyPrograms() async {
+    final data = await _academicRequest(
+      'SV_ThongTin_MH/DSA4FSkuLyYVKC8CKTQuLyYVMygvKQkuIgPP',
+      {
+        'func': 'pkg_congthongtin_hssv_thongtin.LayThongTinChuongTrinhHoc',
+        'iM': PortalCrypto.im,
+        'strChucNang_Id': session.gradesChucNangId,
+        'strQLSV_NguoiHoc_Id': session.userId,
+        'strNguoiThucHien_Id': session.userId,
+      },
+    );
+    try {
+      return StudyProgram.parse(data);
+    } on FormatException {
+      throw PortalException('Không đọc được danh sách chương trình học.');
+    }
+  }
+
+  Future<AcademicRecord> academicRecord(String programId) async {
+    final data =
+        await _academicRequest('SV_ThongTin_MH/CiQ1EDQgCS4iFSAxAiAPKSAv', {
+          'func': 'pkg_congthongtin_hssv_thongtin.KetQuaHocTapCaNhan',
+          'iM': PortalCrypto.im,
+          'strChucNang_Id': session.gradesChucNangId,
+          'strQLSV_NguoiHoc_Id': session.userId,
+          'strDaoTao_ChuongTrinh_Id': programId,
+          'strNguoiThucHien_Id': session.userId,
+        });
+    try {
+      return AcademicRecord.parse(data);
+    } on FormatException {
+      throw PortalException(
+        'Cấu trúc bảng điểm đã thay đổi. Vui lòng thử lại sau.',
+      );
+    }
+  }
+
+  /// Endpoint có trong diemhoc.js; lấy theo ID tổng kết để không trộn các lần thi.
+  Future<List<GradeComponent>> gradeComponents(String resultId) async {
+    final data = await _academicRequest(
+      'SV_ThongTin_MH/DSA4BRIFKCQsFSkgLykRKSAvFSkkLhUKCREP',
+      {
+        'func': 'pkg_congthongtin_hssv_thongtin.LayDSDiemThanhPhanTheoTKHP',
+        'iM': PortalCrypto.im,
+        'strDiem_NguoiHoc_TongKet_Id': resultId,
+      },
+    );
+    try {
+      return portalRows(data).map(GradeComponent.new).toList();
+    } on FormatException {
+      throw PortalException('Không đọc được điểm thành phần.');
+    }
+  }
+
   /// Gửi từ khóa điểm danh với cùng các field, cùng thứ tự như `save_TuGhiNhan`
   /// (lichgiang.js). Request này không có `iM` nên **không mã hóa**. Trả `Message` của portal.
   Future<String> checkIn(ScheduleEntry entry, String keyword, String ip) async {
     const action = 'CC_ThongTin/Them_QLSV_NguoiHoc_TuGhiNhan';
-    final body = await _post(action, checkInFields(session, entry, keyword, ip));
-    return parseResponse(body).message ?? 'Checked in.';
+    final body = await _post(
+      action,
+      checkInFields(session, entry, keyword, ip),
+    );
+    return parseResponse(body).message ?? 'Điểm danh thành công.';
   }
 
   static Map<String, String> checkInFields(
-          Session s, ScheduleEntry e, String keyword, String ip) =>
-      <String, String>{
-        'action': 'CC_ThongTin/Them_QLSV_NguoiHoc_TuGhiNhan',
-        'type': 'POST',
-        'strChucNang_Id': s.chucNangId,
-        'strDaoTao_LopQuanLy_Id': '',
-        'strDiem_DanhSach_Id': e.classSectionId,
-        'strNgayGhiNhan': e.dateText,
-        'strGio': e.startHour,
-        'strPhut': e.startMinute,
-        'strGiay': '0',
-        'strIp': ip,
-        'strNoiDungTuGhiNhan': keyword,
-        'strNguoiThucHien_Id': s.userId,
-        'strQLSV_NguoiHoc_Id': s.userId,
-        'strDaoTao_ChuongTrinh_Id': '',
-        'strQLSV_TrangThaiNguoiHoc_Id': '',
-      };
+    Session s,
+    ScheduleEntry e,
+    String keyword,
+    String ip,
+  ) => <String, String>{
+    'action': 'CC_ThongTin/Them_QLSV_NguoiHoc_TuGhiNhan',
+    'type': 'POST',
+    'strChucNang_Id': s.chucNangId,
+    'strDaoTao_LopQuanLy_Id': '',
+    'strDiem_DanhSach_Id': e.classSectionId,
+    'strNgayGhiNhan': e.dateText,
+    'strGio': e.startHour,
+    'strPhut': e.startMinute,
+    'strGiay': '0',
+    'strIp': ip,
+    'strNoiDungTuGhiNhan': keyword,
+    'strNguoiThucHien_Id': s.userId,
+    'strQLSV_NguoiHoc_Id': s.userId,
+    'strDaoTao_ChuongTrinh_Id': '',
+    'strQLSV_TrangThaiNguoiHoc_Id': '',
+  };
 
   Future<String> _post(String action, Map<String, String> fields) async {
     final url = apiUri(action);
     final headers = <String, String>{
       'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       'Accept': 'application/json, text/javascript, */*; q=0.01',
-      'Authorization': 'Bearer ${session.token}',
+      if (session.token.isNotEmpty) 'Authorization': 'Bearer ${session.token}',
       'User-Agent': userAgent,
       'Origin': portalOrigin,
     };
@@ -154,7 +238,9 @@ class PortalApi {
     }
     if (res.statusCode == 401) throw SessionExpiredException();
     if (res.statusCode < 200 || res.statusCode > 299) {
-      throw PortalException('The portal answered HTTP ${res.statusCode}');
+      throw PortalException(
+        'Cổng sinh viên trả về lỗi HTTP ${res.statusCode}.',
+      );
     }
     return utf8.decode(res.bodyBytes);
   }

@@ -7,28 +7,36 @@ class Session {
     required this.userId,
     required this.chucNangId,
     required this.portalIp,
+    this.gradesChucNangId = '',
   });
 
   final String token;
   final String userId;
+
   /// `strChucNang_Id` của mục menu "Lịch cá nhân".
   final String chucNangId;
+
   /// IP portal ghi lúc đăng nhập — chỉ dùng khi tra IP mới thất bại.
   final String portalIp;
 
+  /// Quyền của menu Điểm học, độc lập với quyền xem lịch.
+  final String gradesChucNangId;
+
   Map<String, dynamic> toJson() => {
-        'token': token,
-        'userId': userId,
-        'chucNangId': chucNangId,
-        'portalIp': portalIp,
-      };
+    'token': token,
+    'userId': userId,
+    'chucNangId': chucNangId,
+    'portalIp': portalIp,
+    'gradesChucNangId': gradesChucNangId,
+  };
 
   factory Session.fromJson(Map<String, dynamic> j) => Session(
-        token: j['token'] as String,
-        userId: j['userId'] as String,
-        chucNangId: (j['chucNangId'] as String?) ?? '',
-        portalIp: (j['portalIp'] as String?) ?? '',
-      );
+    token: j['token'] as String,
+    userId: j['userId'] as String,
+    chucNangId: (j['chucNangId'] as String?) ?? '',
+    portalIp: (j['portalIp'] as String?) ?? '',
+    gradesChucNangId: (j['gradesChucNangId'] as String?) ?? '',
+  );
 
   String encode() => jsonEncode(toJson());
   static Session? decode(String? s) {
@@ -72,6 +80,7 @@ class ScheduleEntry {
   });
 
   final String id;
+
   /// `IDLOPHOCPHAN` → `strDiem_DanhSach_Id` khi check-in.
   final String classSectionId;
   final String subject;
@@ -89,6 +98,7 @@ class ScheduleEntry {
   final String? lastPeriod;
   final bool isExam;
   final String? examShift;
+
   /// `THONGTINCHUYENCAN` — ghi chú điểm danh portal hiển thị cạnh buổi học.
   final String? attendance;
 
@@ -100,7 +110,8 @@ class ScheduleEntry {
   String get timeRange => '$startTime – ${_clock(endHour, endMinute)}';
 }
 
-String _clock(String h, String m) => '${h.padLeft(2, '0')}:${m.padLeft(2, '0')}';
+String _clock(String h, String m) =>
+    '${h.padLeft(2, '0')}:${m.padLeft(2, '0')}';
 
 // ---------------------------------------------------------------- chọn lớp
 
@@ -116,7 +127,8 @@ ScheduleEntry? currentClass(List<ScheduleEntry> entries, DateTime now) {
   ScheduleEntry? best;
   for (final e in entries) {
     if (e.isExam || !sameDay(e.date, now)) continue;
-    if (!(e.startMinutes - earlyCheckInMinutes <= minute && minute < e.endMinutes)) {
+    if (!(e.startMinutes - earlyCheckInMinutes <= minute &&
+        minute < e.endMinutes)) {
       continue;
     }
     if (best == null || e.startMinutes > best.startMinutes) best = e;

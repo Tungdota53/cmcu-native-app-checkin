@@ -1,6 +1,9 @@
 import 'dart:async';
+
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+
 import 'core/models.dart';
 import 'core/portal_api.dart';
 import 'core/session_store.dart';
@@ -20,6 +23,9 @@ class CmcCheckinApp extends StatelessWidget {
     return MaterialApp(
       title: 'CMC Check-in',
       debugShowCheckedModeBanner: false,
+      locale: const Locale('vi'),
+      supportedLocales: const [Locale('vi')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
       themeMode: ThemeMode.system,
@@ -53,6 +59,7 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void dispose() {
     _links?.cancel();
+    _controller?.api.close();
     _controller?.dispose();
     super.dispose();
   }
@@ -60,11 +67,13 @@ class _AuthGateState extends State<AuthGate> {
   Future<void> _listenDeepLinks() async {
     final links = AppLinks();
     final initial = await links.getInitialLink();
+    if (!mounted) return;
     if (initial != null) _handle(initial);
     _links = links.uriLinkStream.listen(_handle);
   }
 
   void _handle(Uri uri) {
+    if (!mounted) return;
     if (uri.scheme == 'cmccheckin' && uri.host == 'checkin') {
       setState(() => _checkInRequested = true);
     }
@@ -72,22 +81,31 @@ class _AuthGateState extends State<AuthGate> {
 
   Future<void> _buildController(Session s) async {
     final ua = await WebSession.userAgent();
-    if (!mounted || _session?.token != s.token) return;
-    final api = PortalApi(session: s, userAgent: ua, cookieHeader: WebSession.cookieHeader);
+    if (!mounted || !identical(_session, s)) return;
+    final api = PortalApi(
+      session: s,
+      userAgent: ua,
+      cookieHeader: WebSession.cookieHeader,
+    );
     final old = _controller;
     setState(() {
       _controller = ScheduleController(
         api: api,
         fallbackIp: s.portalIp,
-        onCurrentWeekLoaded: (week, entries) =>
-            WidgetBridge.publish(signedIn: true, weekStart: week, entries: entries),
+        onCurrentWeekLoaded: (week, entries) => WidgetBridge.publish(
+          signedIn: true,
+          weekStart: week,
+          entries: entries,
+        ),
       );
     });
     old?.dispose();
+    old?.api.close();
   }
 
   Future<void> _onSignedIn(Session s) async {
     await SessionStore.save(s);
+    if (!mounted) return;
     setState(() => _session = s);
     await _buildController(s);
     await WidgetBridge.publish(signedIn: true);
@@ -95,6 +113,8 @@ class _AuthGateState extends State<AuthGate> {
 
   Future<void> _onSessionExpired() async {
     await SessionStore.clear();
+    if (!mounted) return;
+    _controller?.api.close();
     _controller?.dispose();
     setState(() {
       _session = null;
@@ -107,6 +127,8 @@ class _AuthGateState extends State<AuthGate> {
     await SessionStore.clear();
     await WidgetBridge.clear();
     await WebSession.clearAll();
+    if (!mounted) return;
+    _controller?.api.close();
     _controller?.dispose();
     setState(() {
       _session = null;

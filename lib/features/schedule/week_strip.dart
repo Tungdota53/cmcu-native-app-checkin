@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../core/models.dart';
 import '../../theme/formatters.dart';
 import 'schedule_controller.dart';
@@ -17,9 +18,12 @@ class WeekStrip extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-              onPressed: c.previousWeek,
-              tooltip: 'Previous week',
-              icon: const Icon(Icons.chevron_left)),
+            onPressed: c.previousWeek,
+            tooltip: 'Tuần trước',
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 48),
+            padding: EdgeInsets.zero,
+            icon: const Icon(Icons.chevron_left),
+          ),
           for (final day in c.weekDays)
             Expanded(
               child: _DayCell(
@@ -31,9 +35,12 @@ class WeekStrip extends StatelessWidget {
               ),
             ),
           IconButton(
-              onPressed: c.nextWeek,
-              tooltip: 'Next week',
-              icon: const Icon(Icons.chevron_right)),
+            onPressed: c.nextWeek,
+            tooltip: 'Tuần sau',
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 48),
+            padding: EdgeInsets.zero,
+            icon: const Icon(Icons.chevron_right),
+          ),
         ],
       ),
     );
@@ -68,7 +75,7 @@ class _DayCell extends StatelessWidget {
     return Semantics(
       selected: selected,
       button: true,
-      label: dayTitle(day) + (busy ? ', has classes' : ''),
+      label: dayTitle(day) + (busy ? ', có lịch học' : ''),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Material(
@@ -82,13 +89,19 @@ class _DayCell extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(shortWeekday(day),
-                      maxLines: 1,
-                      style: text.labelSmall?.copyWith(color: content)),
+                  Text(
+                    shortWeekday(day),
+                    maxLines: 1,
+                    style: text.labelSmall?.copyWith(color: content),
+                  ),
                   const SizedBox(height: 2),
-                  Text('${day.day}',
-                      style: text.titleMedium
-                          ?.copyWith(color: content, fontWeight: FontWeight.w600)),
+                  Text(
+                    '${day.day}',
+                    style: text.titleMedium?.copyWith(
+                      color: content,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   Container(
                     width: 5,
