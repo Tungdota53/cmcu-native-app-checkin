@@ -4,14 +4,46 @@ workflows:
     environment:
       xcode: latest
       flutter: stable
+      # Biến môi trường để cấu hình
+      vars:
+        APP_ID: "com.example.cmccheckin" # Đổi thành ID thật của bạn
     scripts:
-      - name: Generate native structure
+      - name: Setup Flutter & Generate Native Files
         script: |
-          flutter create . --project-name cmc_checkin --org com.example
+          # 1. Xóa thư mục ios cũ nếu nó bị lỗi/thiếu file
+          rm -rf ios/
+          
+          # 2. Sinh lại cấu trúc iOS/Android
+          flutter create . --platforms=ios,android --project-name=cmc_checkin --org=com.example
           flutter pub get
-      - name: Install pods
+          
+      - name: Configure Info.plist for Deep Linking
         script: |
-          cd ios && pod install && cd ..
+          # Tự động thêm URL Scheme 'cmccheckin' vào Info.plist bằng PlistBuddy
+          INFO_PLIST="ios/Runner/Info.plist"
+          
+          # Thêm ITSAppUsesNonExemptEncryption
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$INFO_PLIST" || true
+          
+          # Thêm CFBundleURLTypes
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$INFO_PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$INFO_PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string $APP_ID" "$INFO_PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$INFO_PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string cmccheckin" "$INFO_PLIST" || true
+
+      - name: Install Pods
+        script: |
+          cd ios
+          pod install
+          cd ..
+
       - name: Build iOS
         script: |
+          # Build without codesign để kiểm tra lỗi compile
           flutter build ios --release --no-codesign
+          
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
