@@ -1,0 +1,272 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import '../../core/models.dart';
+import '../../core/portal_api.dart';
+import '../../core/public_ip.dart';
+
+class CheckInState {
+  const CheckInState({
+    required this.entry,
+    this.focusKeyword = false,
+    this.ip,
+    this.sending = false,
+    this.result,
+    this.succeeded = false,
+  });
+
+  final ScheduleEntry entry;
+  final bool focusKeyword;
+  final String? ip;
+  final bool sending;
+  final String? result;
+  final bool succeeded;
+
+  CheckInState copyWith({
+    String? ip,
+    bool? sending,
+    String? result,
+    bool clearResult = false,
+    bool? succeeded,
+  }) =>
+      CheckInState(
+        entry: entry,
+        focusKeyword: focusKeyword,
+        ip: ip ?? this.ip,
+        sending: sending ?? this.sending,
+        result: clearResult ? null : (result ?? this.result),
+        succeeded: succeeded ?? this.succeeded,
+      );
+}
+
+class ScheduleController extends ChangeNotifier {
+  ScheduleController({
+    required this.api,
+    required this.fallbackIp,
+    this.onCurrentWeekLoaded,
+  }) {
+    final today = dateOnly(DateTime.now());
+    _selectedDay = today;
+    _weekStart = startOfWeek(today);
+    _load(force: false);
+  }
+
+  final PortalApi api;
+  final String fallbackIp;
+  final void Function(DateTime weekStart, List<ScheduleEntry> entries)? onCurrentWeekLoaded;
+
+  late DateTime _weekStart;
+  late DateTime _selectedDay;
+  List<ScheduleEntry> _entries = const [];
+  bool _loading = false;
+  String? _error;
+  bool _sessionExpired = false;
+  String? _notice;
+  CheckInState? _checkIn;
+  final Map<DateTime, List<ScheduleEntry>> _weeks = {};
+  int _loadToken = 0;
+  Future<void>? _loadFuture;
+  bool _disposed = false;
+  String? _autoOpenedId;
+  bool _checkInNowPending = false;
+
+  DateTime get weekStart => _weekStart;
+  DateTime get selectedDay => _selectedDay;
+  List<ScheduleEntry> get entries => _entries;
+  bool get loading => _loading;
+  String? get error => _error;
+  bool get sessionExpired => _sessionExpired;
+  String? get notice => _notice;
+  CheckInState? get checkIn => _checkIn;
+
+  List<DateTime> get weekDays =>
+      List.generate(7, (i) => _weekStart.add(Duration(days: i)));
+  List<ScheduleEntry> get dayEntries =>
+      _entries.where((e) => sameDay(e.date, _selectedDay)).toList();
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  void _emit() {
+    if (!_disposed) notifyListeners();
+  }
+
+  void previousWeek() => _moveTo(_selectedDay.subtract(const Duration(days: 7)));
+  void nextWeek() => _moveTo(_selectedDay.add(const Duration(days: 7)));
+  void goToToday() => _moveTo(DateTime.now());
+  void selectDay(DateTime d) {
+    _selectedDay = dateOnly(d);
+    _emit();
+  }
+
+  Future<void> refresh() {
+    _load(force: true);
+    return _loadFuture ?? Future.value();
+  }
+
+  void noticeShown() => _notice = null;
+
+  void _moveTo(DateTime date) {
+    final day = dateOnly(date);
+    final week = startOfWeek(day);
+    final changed = week != _weekStart;
+    _selectedDay = day;
+    _weekStart = week;
+    if (changed) {
+      _load(force: false);
+    } else {
+      _emit();
+    }
+  }
+
+  void checkInNow() {
+    final now = DateTime.now();
+    final thisWeek = startOfWeek(now);
+    final weekEntries = _weeks[thisWeek];
+    if (weekEntries == null) {
+      _checkInNowPending = true;
+      if (_weekStart != thisWeek) {
+        _moveTo(now);
+      } else if (!_loading) {
+        _load(force: false);
+      }
+      return;
+    }
+    _checkInNowPending = false;
+    _moveTo(now);
+    final entry = currentClass(weekEntries, now);
+    if (entry == null) {
+      final next = nextClass(weekEntries, now);
+      _notice = next != null
+          ? 'No class right now. Next: ${next.subject} at ${next.startTime}.'
+          : 'No class right now.';
+      _emit();
+      return;
+    }
+    _autoOpenedId = entry.id;
+    if (_checkIn?.entry.id != entry.id) _showCheckIn(entry, focusKeyword: true);
+  }
+
+  void offerCurrentClass() {
+    final now = DateTime.now();
+    final thisWeek = startOfWeek(now);
+    final weekEntries = _weeks[thisWeek];
+    if (weekEntries == null) {
+      if (_weekStart != thisWeek) _moveTo(now);
+      return;
+    }
+    if (_checkIn != null) return;
+    final entry = currentClass(weekEntries, now);
+    if (entry == null || entry.id == _autoOpenedId) return;
+    _autoOpenedId = entry.id;
+    _moveTo(now);
+    _showCheckIn(entry, focusKeyword: true);
+  }
+
+  void openCheckIn(ScheduleEntry entry) => _showCheckIn(entry, focusKeyword: false);
+
+  void dismissCheckIn() {
+    if (_checkIn == null) return;
+    _checkIn = null;
+    _emit();
+  }
+
+  void _showCheckIn(ScheduleEntry entry, {required bool focusKeyword}) {
+    _checkIn = CheckInState(entry: entry, focusKeyword: focusKeyword);
+    _emit();
+    if (entry.isExam) return;
+    () async {
+      final ip = await PublicIp.lookup() ?? fallbackIp;
+      final cur = _checkIn;
+      if (cur != null && cur.entry.id == entry.id && cur.ip == null) {
+        _checkIn = cur.copyWith(ip: ip);
+        _emit();
+      }
+    }();
+  }
+
+  Future<void> submitCheckIn(String keyword) async {
+    final current = _checkIn;
+    if (current == null || current.sending || current.entry.isExam) return;
+    final trimmed = keyword.trim();
+    if (trimmed.isEmpty) return;
+    _checkIn = current.copyWith(sending: true, clearResult: true);
+    _emit();
+    final ip = current.ip ?? await PublicIp.lookup() ?? fallbackIp;
+    CheckInState? outcome;
+    try {
+      final message = await api.checkIn(current.entry, trimmed, ip);
+      outcome = current.copyWith(ip: ip, sending: false, result: message, succeeded: true);
+    } on SessionExpiredException {
+      _sessionExpired = true;
+    } on PortalException catch (e) {
+      outcome = current.copyWith(ip: ip, sending: false, result: e.message, succeeded: false);
+    } catch (_) {
+      outcome = current.copyWith(ip: ip, sending: false, result: offlineMessage, succeeded: false);
+    }
+    if (_checkIn?.entry.id == current.entry.id) _checkIn = outcome;
+    _emit();
+    if (outcome?.succeeded == true) _load(force: true);
+  }
+
+  void _load({required bool force}) {
+    final start = _weekStart;
+    final cached = _weeks[start];
+    final token = ++_loadToken;
+    if (cached != null && !force) {
+      _entries = cached;
+      _loading = false;
+      _error = null;
+      _loadFuture = null;
+      _emit();
+      return;
+    }
+    _entries = cached ?? const [];
+    _loading = true;
+    _error = null;
+    _emit();
+    _loadFuture = _fetch(start, token);
+  }
+
+  Future<void> _fetch(DateTime start, int token) async {
+    try {
+      final result = await api.weekSchedule(start, start.add(const Duration(days: 6)));
+      if (token != _loadToken || _disposed) return;
+      _weeks[start] = result;
+      if (_weekStart == start) {
+        _entries = result;
+        _loading = false;
+      }
+      _emit();
+      if (start == startOfWeek(DateTime.now())) {
+        onCurrentWeekLoaded?.call(start, result);
+        if (_checkInNowPending) {
+          checkInNow();
+        } else {
+          offerCurrentClass();
+        }
+      }
+    } on SessionExpiredException {
+      if (token != _loadToken || _disposed) return;
+      _loading = false;
+      _sessionExpired = true;
+      _emit();
+    } on PortalException catch (e) {
+      if (token != _loadToken || _disposed) return;
+      if (_weekStart == start) {
+        _loading = false;
+        _error = e.message;
+      }
+      _emit();
+    } catch (_) {
+      if (token != _loadToken || _disposed) return;
+      if (_weekStart == start) {
+        _loading = false;
+        _error = offlineMessage;
+      }
+      _emit();
+    }
+  }
+}
