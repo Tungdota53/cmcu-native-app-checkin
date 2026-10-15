@@ -1,13 +1,15 @@
-# CMC Check-in
+# IU CheckIn
 
-Ứng dụng Flutter xem lịch học, nhập từ khóa điểm danh và xem kết quả học tập từ cổng sinh viên CMC.
+IU CheckIn là ứng dụng Flutter xem lịch học, nhập từ khóa điểm danh và xem kết quả học tập từ cổng sinh viên CMC.
 
 ## Chức năng
 
-- **Lịch học:** chuyển tuần/ngày, phân biệt lịch học và lịch thi, kéo để tải lại, điểm danh bằng từ khóa giảng viên cung cấp.
-- **Kết quả:** chọn chương trình học, lọc học kỳ, tìm theo tên/mã học phần, xem điểm hệ 10/hệ 4/điểm chữ, đánh giá, lần học/lần thi và điểm thành phần.
+- **Lịch học:** chuyển tuần/ngày, chọn ngày nhanh, tìm không dấu theo môn/phòng/giảng viên, lọc lịch học/lịch thi trong dữ liệu đã tải, xem cả tuần theo ngày, kéo để tải lại.
+- **Điểm danh:** nhãn “Có mặt” riêng, loại bỏ HTML như `<br>` khỏi nhãn hiển thị; thông tin lớp dài nằm trong chi tiết, có nút sao chép. Người dùng chủ động mở ô nhập từ khóa; không tự bật sheet khi tải lịch. Chặn gửi lặp khi đang xử lý, đã thành công hoặc portal báo có mặt.
+- **Kết quả:** chọn chương trình học, lọc học kỳ, tìm tên/mã môn không dấu, sắp xếp học kỳ/tên/điểm, lọc môn đã có điểm; xem điểm hệ 10/hệ 4/điểm chữ, đánh giá, lần học/lần thi và điểm thành phần.
 - **Tổng quan:** GPA tích lũy, trung bình học kỳ, tín chỉ tích lũy và tiến độ chương trình từ số liệu portal. Không tự tính lại GPA bằng cách lấy trung bình các điểm đang lọc.
-- **Giao diện:** Material 3, hai tab điều hướng, thẻ tổng quan, tiếng Việt, chế độ sáng/tối theo hệ thống và bố cục thích ứng chữ lớn.
+- **Giao diện:** nhận diện IU CheckIn với xanh navy–cyan, monogram IU, họa tiết khiên/check, thanh điều hướng nổi, thẻ lịch có màu phân biệt lớp; tổng quan lịch trong ngày và vòng tiến độ tín chỉ theo số liệu portal. Có sáng/tối, chuyển tab mượt, giữ vị trí cuộn/từ khóa và hiệu ứng thẻ/chọn ngày.
+- **Tùy chỉnh:** sáng/tối/hệ thống, lịch gọn và giảm chuyển động, được lưu trên máy. Tôn trọng cài đặt giảm chuyển động của hệ điều hành; thao tác đăng xuất nằm trong cài đặt và có bước xác nhận.
 - **Trạng thái:** đang tải, rỗng, lỗi, thử lại, thời điểm cập nhật; giữ dữ liệu đã tải trong RAM khi làm mới thất bại và báo rõ dữ liệu cũ.
 
 ## Chạy và kiểm tra
@@ -20,9 +22,11 @@ flutter analyze
 flutter test
 ```
 
-Kết quả kiểm tra: `flutter analyze` không có vấn đề; 14 unit/widget test chạy thành công, bao gồm giao diện sáng/tối 320px với text scale 150%. Kiểm tra offline HAR đọc được 1 chương trình, 16 học phần và 3 học kỳ; xác nhận bộ chọn GPA toàn khóa/học kỳ. Đây chưa phải kiểm thử trực tiếp tài khoản hoặc thiết bị.
+Kết quả: `flutter analyze` không có vấn đề và 31 unit/widget test chạy thành công. Kiểm thử bao gồm HTML/HTML đã escape, văn bản tiếng Việt không dấu, request không bị sửa bởi bước làm sạch nhãn, chặn gửi điểm danh lặp, sắp xếp điểm/null, lưu cài đặt, giữ state giữa tab, sao chép thông tin, chọn ngày/lọc lịch và giao diện sáng/tối 320px với text scale 150%–200%. Kiểm tra offline HAR đọc được 1 chương trình, 16 học phần và 3 học kỳ; xác nhận bộ chọn GPA toàn khóa/học kỳ. Đây chưa phải kiểm thử trực tiếp tài khoản hoặc thiết bị.
 
 Checkout hiện chỉ chứa mã Dart và một phần cấu hình iOS; chưa có đầy đủ project Android/iOS để chạy trực tiếp. Khi chuẩn bị platform, lưu lại cấu hình `ios/Runner/Info.plist`, widget và signing rồi tạo project theo tài liệu kỹ thuật. Chưa xác nhận build IPA/APK hoặc chạy SSO trên thiết bị thật trong lượt này.
+
+Tên hiển thị iOS và widget là **IU CheckIn**. Biểu trưng được cung cấp nằm tại `assets/brand/campus-emblem.png`; icon iOS đủ kích thước nằm trong `ios/Runner/Assets.xcassets/AppIcon.appiconset`. Cấu hình Codemagic áp dụng lại tên/icon sau khi tạo platform và xuất `IU-CheckIn-unsigned.ipa`. Khi đã có project Xcode đầy đủ, cập nhật icon bằng `dart run flutter_launcher_icons`. Với catalog đã có trong checkout này, kiểm tra manifest và kích thước PNG bằng `dart run tool/complete_ios_icon_catalog.dart`.
 
 Nếu đang dùng phiên đăng nhập cũ, **đăng xuất rồi đăng nhập lại** để thu nhận thêm quyền menu “Điểm học”. App lấy riêng ID menu lịch và điểm từ phiên portal; phiên cũ thiếu quyền xem điểm sẽ hiện hướng dẫn đăng nhập lại.
 

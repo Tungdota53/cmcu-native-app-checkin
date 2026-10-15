@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'display_text.dart';
 
 /// Những gì app giữ lại từ `edu.system` sau khi đăng nhập.
 class Session {
@@ -101,6 +102,38 @@ class ScheduleEntry {
 
   /// `THONGTINCHUYENCAN` — ghi chú điểm danh portal hiển thị cạnh buổi học.
   final String? attendance;
+
+  String get subjectLabel => portalPlainText(subject);
+  String get roomLabel {
+    final value = portalPlainText(room);
+    return value.isEmpty
+        ? 'Chưa có phòng'
+        : (RegExp(r'^phòng\b', caseSensitive: false).hasMatch(value)
+              ? value
+              : 'Phòng $value');
+  }
+
+  String get lecturerLabel => portalPlainText(lecturer);
+  String get attendanceLabel => portalPlainText(
+    attendance,
+  ).replaceFirst(RegExp(r'\s*\(\d+\)\s*$'), '').trim();
+  bool get isPresent => searchKey(attendanceLabel) == 'co mat';
+  bool get isAbsent =>
+      RegExp(r'^vang(\b| )').hasMatch(searchKey(attendanceLabel));
+  String get classSectionLabel => portalPlainText(classSection)
+      .split('\n')
+      .where(
+        (line) =>
+            searchKey(line) != searchKey(attendanceLabel) ||
+            attendanceLabel.isEmpty,
+      )
+      .join('\n');
+  int get periodCount => firstPeriod == null || lastPeriod == null
+      ? 0
+      : ((int.tryParse(lastPeriod!) ?? 0) -
+                (int.tryParse(firstPeriod!) ?? 0) +
+                1)
+            .clamp(0, 30);
 
   int get startMinutes =>
       (int.tryParse(startHour) ?? 0) * 60 + (int.tryParse(startMinute) ?? 0);

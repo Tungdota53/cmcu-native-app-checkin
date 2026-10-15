@@ -1,6 +1,8 @@
-# Đề xuất nâng cấp toàn diện CMC Check-in
+# Đề xuất nâng cấp toàn diện IU CheckIn
 
 Đây là backlog đề xuất sau phần đã triển khai ngày 15/10/2026. Các mục bên dưới chưa được coi là chức năng đã có.
+
+Đợt nâng cấp giao diện tiếp theo đã hoàn thành: bỏ HTML khỏi nhãn, tách trạng thái có mặt, tìm kiếm không dấu, lọc ngày/tuần và loại lịch, chọn ngày, sao chép chi tiết, sắp xếp bảng điểm và lọc môn có điểm; lưu chế độ sáng/tối/hệ thống, lịch gọn và giảm chuyển động. Chuyển tab giữ state; điểm danh chỉ mở theo thao tác người dùng. Backlog dưới đây tập trung vào phần còn lại.
 
 ## Ưu tiên 1 — Sẵn sàng dùng trên thiết bị thật
 
@@ -26,8 +28,8 @@
 
 ## Ưu tiên 3 — Cá nhân hóa và khả năng truy cập
 
-- Cho chọn sáng/tối/hệ thống, màu nhấn, tiếng Việt/Anh; lưu tùy chọn trên máy.
-- Tìm kiếm không dấu, sắp xếp điểm/tên/tín chỉ; có bộ lọc theo đánh giá chính thức từ portal.
+- Bổ sung màu nhấn và tiếng Anh vào bộ tùy chỉnh đã có.
+- Mở rộng sắp xếp theo tín chỉ và lọc theo đánh giá chính thức từ portal; tìm kiếm không dấu và sắp xếp tên/điểm đã có.
 - Biểu đồ xu hướng GPA học kỳ từ số liệu chính thức, đi kèm bảng dữ liệu dễ đọc bằng trình đọc màn hình.
 - Công cụ lập mục tiêu GPA có nhãn “ước tính”; chỉ bật sau khi xác nhận quy chế tính điểm, môn được tính và cách thay thế điểm học lại.
 - Hỗ trợ VoiceOver/TalkBack, focus bàn phím, nhãn nút rõ nghĩa, màn hình ngang/tablet, text scale 200% và kiểm tra tương phản.

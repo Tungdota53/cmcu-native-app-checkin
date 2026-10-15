@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/academic_models.dart';
 import '../../core/portal_api.dart';
+import '../../theme/motion.dart';
+import '../../theme/formatters.dart';
+import 'academic_overview.dart';
 import 'grades_controller.dart';
-
-String gradeNumber(double? value, [int precision = 2]) => value == null
-    ? '—'
-    : value.toStringAsFixed(precision).replaceFirst(RegExp(r'\.?0+$'), '');
 
 class GradesScreen extends StatefulWidget {
   const GradesScreen({
@@ -21,6 +20,9 @@ class GradesScreen extends StatefulWidget {
 }
 
 class _GradesScreenState extends State<GradesScreen> {
+  late final TextEditingController _search = TextEditingController(
+    text: widget.controller.query,
+  );
   bool _expiredHandled = false;
   GradesController get c => widget.controller;
   @override
@@ -41,6 +43,7 @@ class _GradesScreenState extends State<GradesScreen> {
 
   @override
   void dispose() {
+    _search.dispose();
     c.removeListener(_changed);
     super.dispose();
   }
@@ -73,6 +76,8 @@ class _GradesScreenState extends State<GradesScreen> {
       return RefreshIndicator(
         onRefresh: c.refresh,
         child: CustomScrollView(
+          key: const PageStorageKey('grades-scroll'),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverPadding(
@@ -80,7 +85,7 @@ class _GradesScreenState extends State<GradesScreen> {
               sliver: SliverList.list(
                 children: [
                   Text(
-                    'Mỗi học phần, một bước tiến.',
+                    'Hành trình học tập',
                     style: t.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
@@ -158,7 +163,12 @@ class _GradesScreenState extends State<GradesScreen> {
                     const SizedBox(height: 16),
                   ],
                   if (record != null) ...[
-                    _Summary(summary: record.summary(c.term), term: c.term),
+                    Reveal(
+                      child: AcademicOverview(
+                        summary: record.summary(c.term),
+                        term: c.term,
+                      ),
+                    ),
                     const SizedBox(height: 20),
                     DropdownButtonFormField<String>(
                       key: ValueKey('${c.programId}-${c.term?.id}'),
@@ -187,13 +197,73 @@ class _GradesScreenState extends State<GradesScreen> {
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
-                      initialValue: c.query,
+                      key: const ValueKey('grade-search'),
+                      controller: _search,
                       onChanged: c.search,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: 'Tìm tên hoặc mã học phần',
-                        prefixIcon: Icon(Icons.search),
+                        prefixIcon: const Icon(Icons.search),
                         labelText: 'Tìm học phần',
+                        suffixIcon: c.query.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Xóa tìm học phần',
+                                onPressed: () {
+                                  _search.clear();
+                                  c.search('');
+                                },
+                                icon: const Icon(Icons.close_rounded),
+                              ),
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        FilterChip(
+                          label: const Text('Đã có điểm'),
+                          avatar: const Icon(Icons.checklist_rounded, size: 17),
+                          selected: c.gradedOnly,
+                          onSelected: c.showGradedOnly,
+                        ),
+                        PopupMenuButton<GradeSort>(
+                          tooltip: 'Sắp xếp bảng điểm',
+                          initialValue: c.sort,
+                          onSelected: c.selectSort,
+                          itemBuilder: (_) => [
+                            for (final sort in GradeSort.values)
+                              CheckedPopupMenuItem(
+                                value: sort,
+                                checked: c.sort == sort,
+                                child: Text(sort.label),
+                              ),
+                          ],
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.sort_rounded, size: 18),
+                                const SizedBox(width: 6),
+                                Text(c.sort.label, style: t.labelLarge),
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (c.term != null ||
+                            c.query.isNotEmpty ||
+                            c.gradedOnly ||
+                            c.sort != GradeSort.term)
+                          TextButton(
+                            onPressed: () {
+                              _search.clear();
+                              c.resetFilters();
+                            },
+                            child: const Text('Đặt lại'),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 20),
                     Wrap(
@@ -223,62 +293,81 @@ class _GradesScreenState extends State<GradesScreen> {
                             'Chưa có học phần phù hợp.\nThử đổi học kỳ hoặc từ khóa tìm kiếm.',
                       ),
                     for (final course in courses) ...[
-                      Card(
-                        child: InkWell(
-                          onTap: () => _showCourse(course),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        course.name.isEmpty
-                                            ? 'Học phần'
-                                            : course.name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
+                      Reveal(
+                        key: ValueKey('${course.id}-${course.term.id}'),
+                        child: Card(
+                          child: InkWell(
+                            onTap: () => _showCourse(course),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          course.name.isEmpty
+                                              ? 'Học phần'
+                                              : course.name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                         ),
-                                      ),
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 6),
-                                        child: Text(
-                                          [
-                                            course.code,
-                                            '${gradeNumber(course.credits)} tín chỉ',
-                                            course.term.label,
-                                            if (course.assessment.isNotEmpty)
-                                              course.assessment,
-                                          ].where((s) => s.isNotEmpty).join(' · '),
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 6,
+                                          ),
+                                          child: Text(
+                                            [
+                                                  course.code,
+                                                  '${gradeNumber(course.credits)} tín chỉ',
+                                                  course.term.label,
+                                                  if (course
+                                                      .assessment
+                                                      .isNotEmpty)
+                                                    course.assessment,
+                                                ]
+                                                .where((s) => s.isNotEmpty)
+                                                .join(' · '),
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 16),
-                                Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      gradeNumber(course.score10),
-                                      style: t.titleLarge?.copyWith(
-                                        color: s.primary,
-                                        fontWeight: FontWeight.w800,
-                                      ),
+                                  const SizedBox(width: 16),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
                                     ),
-                                    Text(
-                                      course.letter.isEmpty
-                                          ? '/ 10'
-                                          : course.letter,
-                                      style: t.labelMedium,
+                                    decoration: BoxDecoration(
+                                      color: s.primary.withValues(alpha: .07),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
-                                  ],
-                                ),
-                              ],
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          gradeNumber(course.score10),
+                                          style: t.titleLarge?.copyWith(
+                                            color: s.primary,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        Text(
+                                          course.letter.isEmpty
+                                              ? '/ 10'
+                                              : course.letter,
+                                          style: t.labelMedium,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -302,97 +391,6 @@ class _GradesScreenState extends State<GradesScreen> {
         ),
       );
     },
-  );
-}
-
-class _Summary extends StatelessWidget {
-  const _Summary({required this.summary, this.term});
-  final AcademicSummary summary;
-  final AcademicTerm? term;
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(24),
-      gradient: const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF172C65), Color(0xFF365BC4)],
-      ),
-    ),
-    child: DefaultTextStyle.merge(
-      style: const TextStyle(color: Colors.white),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.auto_graph_rounded, color: Color(0xFFBDDAFF)),
-              const SizedBox(width: 10),
-              Expanded(child: Text(term?.label ?? 'TỔNG QUAN TÍCH LŨY')),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 32,
-            runSpacing: 20,
-            children: [
-              _Metric(
-                value: gradeNumber(summary.average4),
-                label: term == null
-                    ? 'GPA tích lũy / 4'
-                    : 'Trung bình học kỳ / 4',
-              ),
-              _Metric(
-                value: gradeNumber(summary.average10),
-                label: 'Điểm trung bình / 10',
-              ),
-              _Metric(
-                value: gradeNumber(summary.earnedCredits),
-                label: 'Tín chỉ tích lũy',
-              ),
-            ],
-          ),
-          if (term == null &&
-              summary.earnedCredits != null &&
-              summary.curriculumCredits != null &&
-              summary.curriculumCredits! > 0) ...[
-            const SizedBox(height: 20),
-            LinearProgressIndicator(
-              value: (summary.earnedCredits! / summary.curriculumCredits!)
-                  .clamp(0, 1),
-              minHeight: 6,
-              borderRadius: BorderRadius.circular(4),
-              color: const Color(0xFF96E4D1),
-              backgroundColor: Colors.white24,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${gradeNumber(summary.earnedCredits)} / ${gradeNumber(summary.curriculumCredits)} tín chỉ chương trình',
-            ),
-          ],
-        ],
-      ),
-    ),
-  );
-}
-
-class _Metric extends StatelessWidget {
-  const _Metric({required this.value, required this.label});
-  final String value, label;
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        value,
-        style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800),
-      ),
-      Text(
-        label,
-        style: const TextStyle(color: Color(0xFFE0E9FF), fontSize: 12),
-      ),
-    ],
   );
 }
 

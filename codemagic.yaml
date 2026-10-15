@@ -1,7 +1,7 @@
 
 workflows:
   ios-unsigned-workflow:
-    name: CMC Checkin - Unsigned IPA
+    name: IU CheckIn - Unsigned IPA
     instance_type: mac_mini_m2
     max_build_duration: 120
 
@@ -47,6 +47,13 @@ workflows:
           fi
 
           echo "Podfile found"
+
+      - name: Apply IU CheckIn identity
+        script: |
+          set -e
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName IU CheckIn" ios/Runner/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName IU CheckIn" ios/Runner/Info.plist
+          dart run flutter_launcher_icons
 
       - name: Install CocoaPods
         script: |
@@ -97,9 +104,9 @@ workflows:
           cp -R "$APP_PATH" "$PACKAGE_DIR/Payload/Runner.app"
 
           cd "$PACKAGE_DIR"
-          /usr/bin/zip -qry "$IPA_DIR/CMC-Checkin-unsigned.ipa" Payload
+          /usr/bin/zip -qry "$IPA_DIR/IU-CheckIn-unsigned.ipa" Payload
 
-          test -s "$IPA_DIR/CMC-Checkin-unsigned.ipa"
+          test -s "$IPA_DIR/IU-CheckIn-unsigned.ipa"
           echo "Unsigned IPA created successfully"
 
     artifacts:

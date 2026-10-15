@@ -1,3 +1,5 @@
+import 'display_text.dart';
+
 /// Schema từ diemhoc.js và response trong HAR. Không tự quy đổi điểm/GPA.
 typedef PortalRow = Map<String, dynamic>;
 
@@ -28,7 +30,7 @@ class StudyProgram {
       .map(
         (r) => StudyProgram(
           portalText(r['DAOTAO_TOCHUCCHUONGTRINH_ID']),
-          portalText(r['DAOTAO_CHUONGTRINH_TEN']),
+          portalPlainText(portalText(r['DAOTAO_CHUONGTRINH_TEN'])),
         ),
       )
       .toList(growable: false);
@@ -46,13 +48,13 @@ class CourseGrade {
   CourseGrade(PortalRow row)
     : id = portalText(row['ID']),
       code = portalText(row['DAOTAO_HOCPHAN_MA']),
-      name = portalText(row['DAOTAO_HOCPHAN_TEN']),
+      name = portalPlainText(portalText(row['DAOTAO_HOCPHAN_TEN'])),
       credits = portalNumber(row['DAOTAO_HOCPHAN_HOCTRINH']),
       score10 = portalNumber(row['DIEM']),
       score4 = portalNumber(row['DIEMQUYDOI']),
       letter = portalText(row['DIEMQUYDOI_TEN']),
-      assessment = portalText(row['DANHGIA_TEN']),
-      note = portalText(row['GHICHU']),
+      assessment = portalPlainText(portalText(row['DANHGIA_TEN'])),
+      note = portalPlainText(portalText(row['GHICHU'])),
       studyAttempt = portalText(row['LANHOC']),
       examAttempt = portalText(row['LANTHI']),
       term = AcademicTerm(portalText(row['NAMHOC']), portalText(row['HOCKY']));
@@ -65,7 +67,7 @@ class CourseGrade {
 
 class GradeComponent {
   GradeComponent(PortalRow row)
-    : name = portalText(row['DIEM_THANHPHANDIEM_TEN']),
+    : name = portalPlainText(portalText(row['DIEM_THANHPHANDIEM_TEN'])),
       score = portalNumber(row['DIEM']),
       studyAttempt = portalText(row['LANHOC']),
       examAttempt = portalText(row['LANTHI']);
