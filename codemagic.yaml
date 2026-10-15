@@ -1,48 +1,112 @@
+
 workflows:
-  ios-workflow:
-    name: iOS Build (IPA)
+  ios-unsigned-workflow:
+    name: CMC Checkin - Unsigned IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+
     environment:
       xcode: latest
+      cocoapods: default
       flutter: stable
+
     triggering:
       events:
         - push
       branch_patterns:
-        - pattern: "main"
+        - pattern: main
+          include: true
+          source: true
+
     scripts:
-      - name: Setup Flutter & Generate Native Files
+      - name: Prepare Flutter project
         script: |
+          set -e
           rm -rf ios/
-          flutter create . --platforms=ios,android --project-name=cmc_checkin --org=com.wangganh
+          flutter create . \
+            --platforms=ios,android \
+            --project-name=cmc_checkin \
+            --org=com.wangganh
           flutter pub get
 
-      - name: Configure Info.plist
+      - name: Configure iOS
         script: |
+          set -e
           INFO_PLIST="ios/Runner/Info.plist"
-          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$INFO_PLIST" || true
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$INFO_PLIST" || true
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$INFO_PLIST" || true
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.wangganh.cmccheckin" "$INFO_PLIST" || true
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$INFO_PLIST" || true
-          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string cmccheckin" "$INFO_PLIST" || true
 
-      - name: Install Pods
+          /usr/libexec/PlistBuddy \
+            -c "Add :ITSAppUsesNonExemptEncryption bool false" \
+            "$INFO_PLIST" || true
+
+          /usr/libexec/PlistBuddy \
+            -c "Add :CFBundleURLTypes array" \
+            "$INFO_PLIST" || true
+
+          /usr/libexec/PlistBuddy \
+            -c "Add :CFBundleURLTypes:0 dict" \
+            "$INFO_PLIST" || true
+
+          /usr/libexec/PlistBuddy \
+            -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.wangganh.cmccheckin" \
+            "$INFO_PLIST" || true
+
+          /usr/libexec/PlistBuddy \
+            -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" \
+            "$INFO_PLIST" || true
+
+          /usr/libexec/PlistBuddy \
+            -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string cmccheckin" \
+            "$INFO_PLIST" || true
+
+      - name: Install CocoaPods
         script: |
+          set -e
           cd ios
           pod install
           cd ..
 
-      - name: Build iOS IPA
+      - name: Build unsigned iOS app
         script: |
-          # KHÔNG có --no-codesign → Codemagic sẽ dùng e-sign đã cấu hình
-          flutter build ipa --release
+          set -e
+          flutter build ios --release --no-codesign
+
+          APP_PATH="build/ios/iphoneos/Runner.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: Runner.app was not generated"
+            find build/ios -maxdepth 4 -print
+            exit 1
+          fi
+
+      - name: Package unsigned IPA
+        script: |
+          set -e
+
+          APP_PATH="build/ios/iphoneos/Runner.app"
+          IPA_DIR="$CM_BUILD_DIR/build/ios/ipa"
+          PACKAGE_DIR="$CM_BUILD_DIR/unsigned_package"
+
+          mkdir -p "$IPA_DIR"
+          rm -rf "$PACKAGE_DIR"
+          mkdir -p "$PACKAGE_DIR/Payload"
+
+          cp -R "$APP_PATH" "$PACKAGE_DIR/Payload/Runner.app"
+
+          cd "$PACKAGE_DIR"
+          zip -qry "$IPA_DIR/CMC-Checkin-unsigned.ipa" Payload
+
+          test -s "$IPA_DIR/CMC-Checkin-unsigned.ipa"
+          echo "Unsigned IPA created successfully"
 
     artifacts:
       - build/ios/ipa/*.ipa
-      - build/ios/archive/*.xcarchive
+      - build/ios/iphoneos/Runner.app
       - /tmp/xcodebuild_logs/*.log
 
     publishing:
       email:
         recipients:
-          - quanganh101107@gmail.com  # đổi thành email của bạn
+          - quanganh101107@gmail.com
+        notify:
+          success: true
+          failure: true
