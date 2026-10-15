@@ -25,6 +25,23 @@ workflows:
           flutter --version
           flutter pub get
 
+      - name: Prepare iOS project
+        script: |
+          set -e
+
+          if [ ! -f ios/Podfile ]; then
+            echo "Podfile missing. Generating iOS platform files..."
+            flutter create --platforms=ios .
+          fi
+
+          if [ ! -f ios/Podfile ]; then
+            echo "ERROR: ios/Podfile was not generated"
+            find ios -maxdepth 3 -type f -print || true
+            exit 1
+          fi
+
+          echo "Podfile found"
+
       - name: Install CocoaPods
         script: |
           set -e
@@ -36,17 +53,11 @@ workflows:
         script: |
           set -e
 
-          WORKSPACE="$CM_BUILD_DIR/ios/Runner.xcworkspace"
           DERIVED="$CM_BUILD_DIR/ios_derived"
           APP_PATH="$DERIVED/Build/Products/Release-iphoneos/Runner.app"
 
-          if [ ! -d "$WORKSPACE" ]; then
-            echo "ERROR: Runner.xcworkspace not found"
-            exit 1
-          fi
-
           xcodebuild \
-            -workspace "$WORKSPACE" \
+            -workspace "$CM_BUILD_DIR/ios/Runner.xcworkspace" \
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
@@ -60,11 +71,9 @@ workflows:
 
           if [ ! -d "$APP_PATH" ]; then
             echo "ERROR: Runner.app not found"
-            find "$DERIVED/Build/Products" -maxdepth 3 -print
+            find "$DERIVED/Build/Products" -maxdepth 3 -print || true
             exit 1
           fi
-
-          echo "Unsigned app built successfully"
 
       - name: Package unsigned IPA
         script: |
@@ -77,10 +86,7 @@ workflows:
           test -d "$APP_PATH"
 
           rm -rf "$PACKAGE_DIR"
-          mkdir -p "$PACKAGE_DIR/Payload"
-          mkdir -p "$IPA_DIR"
-
-          rm -f "$IPA_DIR/CMC-Checkin-unsigned.ipa"
+          mkdir -p "$PACKAGE_DIR/Payload" "$IPA_DIR"
 
           cp -R "$APP_PATH" "$PACKAGE_DIR/Payload/Runner.app"
 
@@ -88,9 +94,7 @@ workflows:
           /usr/bin/zip -qry "$IPA_DIR/CMC-Checkin-unsigned.ipa" Payload
 
           test -s "$IPA_DIR/CMC-Checkin-unsigned.ipa"
-
-          echo "IPA created:"
-          ls -lh "$IPA_DIR/CMC-Checkin-unsigned.ipa"
+          echo "Unsigned IPA created successfully"
 
     artifacts:
       - build/ios/ipa/*.ipa
